@@ -114,13 +114,16 @@ local function clipBody()
     local rows = {}
 
     -- Manual input box. A fixed `key` keeps already-typed text across re-renders.
-    table.insert(rows, ui.column({ gap = 6 }, {
+    -- `flexGrow = 1` wajib: tanpa itu ui.input shrink-wrap ke lebar teks
+    -- placeholder-nya (~60px) di dalam kolom align="stretch".
+    table.insert(rows, ui.column({ gap = 6, align = "stretch" }, {
         ui.input({
             key         = "clip-input",
             value       = clipInput,
             placeholder = noctalia.tr("clip.placeholder"),
             multiline   = true,
             height      = 56,
+            flexGrow    = 1,
             onChange    = "onClipInputChange",
             onSubmit    = "onClipInputSubmit",
         }),
