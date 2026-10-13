@@ -1,6 +1,6 @@
 id = "abuamar142/qr-share"
 name = "QR Share"
-version = "1.0.0"
+version = "1.0.1"
 plugin_api = 24
 author = "abuamar142"
 license = "MIT"
