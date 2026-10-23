@@ -50,8 +50,8 @@ entry = "widget.luau"
 [[panel]]
 id = "browser"
 entry = "panel.luau"
-width = 460
-height = 700
+width = 600
+height = 720
 placement = "floating"
 position = "center"
 

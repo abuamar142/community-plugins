@@ -1,6 +1,6 @@
 # Murattal
 
-Stream murottal Al-Qur'an per surah and qari from mp3quran.net, played headless via mpv. Bar widget shows the current surah, panel searches qari/surah and exposes progress seek, repeat, shuffle, speed, sleep timer, and per-qari favorites; launcher searches surahs.
+Stream murottal Al-Qur'an per surah and qari from mp3quran.net, played headless via mpv. Bar widget shows the current surah. The panel uses searchable qari/surah dropdowns and exposes progress seek, repeat, shuffle, speed, sleep timer, and per-qari favorites; launcher searches surahs.
 
 ## Plugin
 
