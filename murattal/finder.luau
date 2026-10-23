@@ -101,7 +101,9 @@ function onQuery(text)
   favorites = loadFavorites()
   local rows = {}
 
-  local removeMode = q:lower():match("^rm%s") or q:lower():match("^remove%s") or q:lower():match("^unfav%s")
+  local lower = q:lower()
+  local removeMode = lower == "rm" or lower == "remove" or lower == "unfav"
+    or lower:match("^rm%s") or lower:match("^remove%s") or lower:match("^unfav%s")
   if removeMode then
     local filter = q:gsub("^[Rr][Mm]%s*", ""):gsub("^[Rr]emove%s*", ""):gsub("^[Uu]nfav%s*", "")
     filter = noctalia.string.trim(filter)
