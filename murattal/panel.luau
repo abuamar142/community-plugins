@@ -82,13 +82,17 @@ local surahIndex = 0
 local favIndex = 0
 local speedIndex = 1
 local sleepIndex = 0
+local surahQuery = ""
+local qariQuery = ""
 
 local function syncIndices()
-  for i, r in ipairs(reciters) do
+  reciterIndex = 0
+  for i, r in ipairs(filteredReciters()) do
     if tostring(r.id) == tostring(status.reciterId) then reciterIndex = i - 1 end
   end
-  for i, s in ipairs(surahs) do
-    if tonumber(s.id) == tonumber(status.surahId) then surahIndex = i - 1 end
+  surahIndex = 0
+  for i, su in ipairs(filteredSurahs()) do
+    if tonumber(su.id) == tonumber(status.surahId) then surahIndex = i - 1 end
   end
   local sp = tonumber(status.speed) or 1.0
   local speeds = {0.75, 1.0, 1.25, 1.5}
@@ -108,14 +112,14 @@ end
 
 local function reciterOptions()
   local out = {}
-  for _, r in ipairs(reciters) do table.insert(out, r.label or r.name) end
+  for _, r in ipairs(filteredReciters()) do table.insert(out, r.label or r.name) end
   if #out == 0 then table.insert(out, "Memuat qari...") end
   return out
 end
 
 local function surahOptions()
   local out = {}
-  for _, s in ipairs(surahs) do table.insert(out, tostring(s.id) .. ". " .. (s.name or "")) end
+  for _, su in ipairs(filteredSurahs()) do table.insert(out, tostring(su.id) .. ". " .. (su.name or "")) end
   if #out == 0 then table.insert(out, "Memuat surah...") end
   return out
 end
@@ -134,6 +138,38 @@ local function favOptions()
   return out
 end
 
+local function filteredReciters()
+  local out = {}
+  local q = (qariQuery or ""):lower()
+  for _, r in ipairs(reciters) do
+    if q == "" or (r.label or r.name or ""):lower():find(q, 1, true) or tostring(r.id):lower():find(q, 1, true) then
+      table.insert(out, r)
+    end
+  end
+  if #out == 0 then out = reciters end
+  return out
+end
+
+local function filteredSurahs()
+  local out = {}
+  local q = (surahQuery or ""):lower()
+  for _, su in ipairs(surahs) do
+    if q == "" or tostring(su.id):find(q, 1, true) or (su.name or ""):lower():find(q, 1, true) then
+      table.insert(out, su)
+    end
+  end
+  if #out == 0 then out = surahs end
+  return out
+end
+
+local function fmtTime(sec)
+  sec = math.floor(tonumber(sec) or 0)
+  if sec < 0 then sec = 0 end
+  local m = math.floor(sec / 60)
+  local s = sec % 60
+  return string.format("%02d:%02d", m, s)
+end
+
 function render()
   syncIndices()
   local playing = status.playing == true
@@ -144,18 +180,25 @@ function render()
     }),
     ui.column({ gap = 8 }, {
       ui.label({ text = "Qari", fontWeight = "medium", color = "on_surface_variant" }),
+      ui.input({ value = qariQuery, placeholder = "Search qari...", onChange = "onQariSearch" }),
       ui.select({ options = reciterOptions(), selectedIndex = reciterIndex, onChange = "onReciter" }),
     }),
     ui.column({ gap = 8 }, {
       ui.label({ text = "Surah", fontWeight = "medium", color = "on_surface_variant" }),
+      ui.input({ value = surahQuery, placeholder = "Search surah...", onChange = "onSurahSearch" }),
       ui.select({ options = surahOptions(), selectedIndex = surahIndex, onChange = "onSurah" }),
     }),
     ui.label({ text = playing and ("Playing: " .. (status.name or "")) or "Paused", color = playing and "primary" or "on_surface_variant" }),
+    ui.column({ gap = 4 }, {
+      ui.slider({ min = 0, max = math.max(1, tonumber(status.duration) or 0), step = 1, value = tonumber(status.position) or 0, onChange = "onSeek" }),
+      ui.label({ text = fmtTime(status.position) .. " / " .. fmtTime(status.duration), color = "on_surface_variant" }),
+    }),
     ui.row({ gap = 8, justify = "center" }, {
       ui.button({ glyph = "player-skip-back-filled", onClick = "onPrev" }),
       ui.button({ glyph = playing and "player-pause-filled" or "player-play-filled", variant = "primary", onClick = "onToggle" }),
       ui.button({ glyph = "player-skip-forward-filled", onClick = "onNext" }),
       ui.button({ glyph = isFav(status.surahId, status.reciterId) and "star-filled" or "star", onClick = "onToggleFav" }),
+      ui.button({ text = status.shuffle and "Shuffle: On" or "Shuffle: Off", onClick = "onShuffle" }),
     }),
     ui.column({ gap = 8 }, {
       ui.label({ text = "Volume: " .. tostring(status.volume or 65) .. "%", fontWeight = "medium", color = "on_surface_variant" }),
@@ -189,19 +232,21 @@ function onClose()
 end
 
 function onReciter(index, _text)
+  local list = filteredReciters()
   local i = (tonumber(index) or 0) + 1
-  if reciters[i] then
-    req("setReciter", { reciterId = reciters[i].id })
-    status.reciterId = reciters[i].id
+  if list[i] then
+    req("setReciter", { reciterId = list[i].id })
+    status.reciterId = list[i].id
     render()
   end
 end
 
 function onSurah(index, _text)
+  local list = filteredSurahs()
   local i = (tonumber(index) or 0) + 1
-  if surahs[i] then
-    req("setSurah", { surahId = surahs[i].id })
-    status.surahId = surahs[i].id
+  if list[i] then
+    req("setSurah", { surahId = list[i].id })
+    status.surahId = list[i].id
     render()
   end
 end
@@ -263,6 +308,25 @@ function onRemoveFav()
   if favorites[i] then
     toggleFav(favorites[i].surahId, favorites[i].reciterId)
   end
+end
+
+function onQariSearch(value)
+  qariQuery = tostring(value or "")
+  render()
+end
+
+function onSurahSearch(value)
+  surahQuery = tostring(value or "")
+  render()
+end
+
+function onShuffle()
+  req("shuffle")
+end
+
+function onSeek(value)
+  local sec = tonumber(value)
+  if sec then req("seek", { seconds = sec }) end
 end
 
 function onToggleFav()

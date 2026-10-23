@@ -16,7 +16,7 @@ local hasSocat = noctalia.commandExists("socat")
 
 local reciters = {}
 local surahs = {}
-local status = { playing = false, name = "", reciterId = "", surahId = 1, volume = volume, url = "", repeatOne = false, speed = 1.0, sleepUntil = 0 }
+local status = { playing = false, name = "", reciterId = "", surahId = 1, volume = volume, url = "", repeatOne = false, speed = 1.0, sleepUntil = 0, shuffle = false, position = 0, duration = 0 }
 local lastSeq = -1
 local launchedAt = 0
 local deadStreak = 0
@@ -34,6 +34,9 @@ local function publish()
     repeatOne = status.repeatOne == true,
     speed = tonumber(status.speed) or 1.0,
     sleepUntil = tonumber(status.sleepUntil) or 0,
+    shuffle = status.shuffle == true,
+    position = tonumber(status.position) or 0,
+    duration = tonumber(status.duration) or 0,
   })
 end
 
@@ -234,6 +237,8 @@ local function doPlay(reciterId, surahId)
   status.name = s.name .. " — " .. r.name
   status.url = url
   status.playing = true
+  status.position = 0
+  status.duration = 0
   publish()
 
   local dropped = false
@@ -337,6 +342,52 @@ local function doSleep(minutes)
   publish()
 end
 
+local function doShuffle(value)
+  if value == nil then
+    status.shuffle = not (status.shuffle == true)
+  else
+    status.shuffle = (value == true or value == "true" or value == 1 or value == "1")
+  end
+  publish()
+end
+
+local function doSeek(seconds)
+  seconds = tonumber(seconds)
+  if seconds == nil then return end
+  if seconds < 0 then seconds = 0 end
+  status.position = seconds
+  publish()
+  if not status.playing then return end
+  if hasSocat then
+    enqueue(function(done)
+      noctalia.runAsync(mpvCmd('{"command":["seek",' .. tostring(seconds) .. ',"absolute"]}'), function()
+        done()
+      end)
+    end)
+  end
+end
+
+local function queryProgress()
+  if not hasSocat or not status.playing then return end
+  local cmd = "{ printf '%s\\n' '{\"command\":[\"get_property\",\"playback-time\"],\"request_id\":1}' '{\"command\":[\"get_property\",\"duration\"],\"request_id\":2}'; } | socat - " .. sq(SOCK)
+  noctalia.runAsync(cmd, function(res)
+    if not (res and res.exitCode == 0) then return end
+    local pos, dur = status.position, status.duration
+    for line in tostring(res.stdout or ""):gmatch("[^\r\n]+") do
+      local ok, data = pcall(function() return noctalia.json.decode(line) end)
+      if ok and type(data) == "table" and data.request_id and data.data ~= nil then
+        if data.request_id == 1 then pos = tonumber(data.data) or pos end
+        if data.request_id == 2 then dur = tonumber(data.data) or dur end
+      end
+    end
+    if status.playing then
+      status.position = pos
+      status.duration = dur
+      publish()
+    end
+  end)
+end
+
 local function handleRequest(req)
   if type(req) ~= "table" then return end
   local seq = tonumber(req.seq) or -1
@@ -357,6 +408,10 @@ local function handleRequest(req)
     doRepeat(req.value)
   elseif req.action == "sleep" then
     doSleep(req.minutes)
+  elseif req.action == "shuffle" then
+    doShuffle(req.value)
+  elseif req.action == "seek" then
+    doSeek(req.seconds)
   elseif req.action == "next" then
     local i = 1
     for idx, s in ipairs(surahs) do
@@ -400,6 +455,7 @@ function update()
     return
   end
   if status.playing then
+    queryProgress()
     if os.time() - launchedAt < 8 then return end
     aliveCheck(function(alive)
       if not status.playing then return end
@@ -420,6 +476,12 @@ function update()
       else
         if status.repeatOne == true then
           doPlay(status.reciterId, status.surahId)
+          return
+        end
+        if status.shuffle == true and #surahs > 0 then
+          math.randomseed(os.time())
+          local idx = math.random(#surahs)
+          doPlay(status.reciterId, surahs[idx].id)
           return
         end
         -- natural end: advance to next surah
@@ -477,6 +539,11 @@ function onIpc(event, payload)
   elseif event == "sleep" then
     local m = tonumber(payload)
     if m then handleRequest({ seq = lastSeq + 1, action = "sleep", minutes = m }) end
+  elseif event == "shuffle" then
+    handleRequest({ seq = lastSeq + 1, action = "shuffle" })
+  elseif event == "seek" then
+    local sec = tonumber(payload)
+    if sec then handleRequest({ seq = lastSeq + 1, action = "seek", seconds = sec }) end
   elseif event == "refresh" then
     fetchCatalog()
   end
