@@ -3810,3 +3810,16 @@ icon = "flower"
 description = "Claude Code on your bar: a spinner while it works, the real /status limits, live sessions, last 7 days."
 plugin_api = 32
 tags = ["ai", "development", "indicator", "bar", "panel", "niri"]
+
+[[plugin]]
+id = "abuamar142/murattal"
+name = "Murattal"
+version = "0.1.0"
+updated_at = 1792748941
+added_at = 1792748941
+author = "abuamar142"
+license = "MIT"
+icon = "music-note"
+description = "Stream murottal Al-Qur'an per surah and qari from mp3quran.net via mpv."
+plugin_api = 24
+tags = ["bar", "panel", "service", "launcher", "audio", "media", "quran"]

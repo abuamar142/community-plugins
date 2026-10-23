@@ -1,0 +1,64 @@
+id = "abuamar142/murattal"
+name = "Murattal"
+version = "0.1.0"
+plugin_api = 24
+author = "abuamar142"
+license = "MIT"
+icon = "music-note"
+description = "Stream murottal Al-Qur'an per surah and qari from mp3quran.net via mpv."
+dependencies = ["mpv", "socat"]
+tags = ["bar", "panel", "service", "audio", "media", "quran"]
+
+[[setting]]
+key = "default_volume"
+type = "int"
+label_key = "settings.default_volume.label"
+description_key = "settings.default_volume.description"
+default = 65
+min = 0
+max = 100
+
+[[setting]]
+key = "mpv_bin"
+type = "string"
+label_key = "settings.mpv_bin.label"
+description_key = "settings.mpv_bin.description"
+default = "mpv"
+
+[[service]]
+id = "player"
+entry = "service.luau"
+
+[[widget]]
+id = "murottal"
+entry = "widget.luau"
+
+  [[widget.setting]]
+  key = "show_name"
+  type = "bool"
+  label_key = "settings.show_name.label"
+  default = true
+
+  [[widget.setting]]
+  key = "max_length"
+  type = "int"
+  label_key = "settings.max_length.label"
+  default = 24
+  min = 5
+  max = 60
+
+[[panel]]
+id = "browser"
+entry = "panel.luau"
+width = 460
+height = 620
+placement = "floating"
+position = "center"
+
+[[launcher_provider]]
+id = "finder"
+entry = "finder.luau"
+prefix = "quran"
+glyph = "music-note"
+include_in_global_search = false
+debounce_ms = 300
