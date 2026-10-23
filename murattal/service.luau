@@ -342,6 +342,28 @@ local function doSleep(minutes)
   publish()
 end
 
+local function queryProgressFromLog()
+  if hasSocat then return end
+  noctalia.runAsync("tail -n 30 " .. sq(dataDir .. "/mpv.log") .. " 2>/dev/null", function(res)
+    if not (res and res.exitCode == 0) then return end
+    local lastPos, lastDur
+    for line in tostring(res.stdout or ""):gmatch("[^\r\n]+") do
+      local p, d = line:match("A:%s*(%d+:%d+)%s*/%s*(%d+:%d+)")
+      if p then lastPos, lastDur = p, d end
+    end
+    if not lastPos then return end
+    local function toSec(t)
+      local m, sec = t:match("(%d+):(%d+)")
+      return (tonumber(m) or 0) * 60 + (tonumber(sec) or 0)
+    end
+    if status.playing then
+      status.position = toSec(lastPos)
+      status.duration = toSec(lastDur)
+      publish()
+    end
+  end)
+end
+
 local function doShuffle(value)
   if value == nil then
     status.shuffle = not (status.shuffle == true)
@@ -455,7 +477,7 @@ function update()
     return
   end
   if status.playing then
-    queryProgress()
+    if hasSocat then queryProgress() else queryProgressFromLog() end
     if os.time() - launchedAt < 8 then return end
     aliveCheck(function(alive)
       if not status.playing then return end

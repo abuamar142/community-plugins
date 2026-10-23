@@ -51,7 +51,7 @@ entry = "widget.luau"
 id = "browser"
 entry = "panel.luau"
 width = 460
-height = 620
+height = 700
 placement = "floating"
 position = "center"
 

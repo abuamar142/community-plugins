@@ -1,4 +1,5 @@
 --!nonstrict
+local ready = false
 local reciters = noctalia.state.get("quran_reciters") or {}
 local surahs = noctalia.state.get("quran_surahs") or {}
 local status = noctalia.state.get("quran_status") or { playing = false, name = "", reciterId = "", surahId = 1, volume = 65, url = "", repeatOne = false, speed = 1.0, sleepUntil = 0 }
@@ -85,6 +86,8 @@ local sleepIndex = 0
 local surahQuery = ""
 local qariQuery = ""
 
+local filteredReciters, filteredSurahs
+
 local function syncIndices()
   reciterIndex = 0
   for i, r in ipairs(filteredReciters()) do
@@ -138,7 +141,7 @@ local function favOptions()
   return out
 end
 
-local function filteredReciters()
+filteredReciters = function()
   local out = {}
   local q = (qariQuery or ""):lower()
   for _, r in ipairs(reciters) do
@@ -150,7 +153,7 @@ local function filteredReciters()
   return out
 end
 
-local function filteredSurahs()
+filteredSurahs = function()
   local out = {}
   local q = (surahQuery or ""):lower()
   for _, su in ipairs(surahs) do
@@ -170,10 +173,10 @@ local function fmtTime(sec)
   return string.format("%02d:%02d", m, s)
 end
 
-function render()
+local function renderImpl()
   syncIndices()
   local playing = status.playing == true
-  panel.render(ui.column({ flexGrow = 1, gap = 16 }, {
+  panel.render(ui.scroll({ flexGrow = 1, gap = 10 }, {
     ui.row({ align = "center", justify = "space_between", gap = 8 }, {
       ui.label({ text = "Murottal Al-Qur'an", fontSize = 16, fontWeight = "bold", color = "on_surface", flexGrow = 1 }),
       ui.button({ glyph = "close", onClick = "onClose" }),
@@ -332,3 +335,17 @@ end
 function onToggleFav()
   toggleFav(status.surahId, status.reciterId)
 end
+
+
+function render()
+  if not ready then return end
+  local ok, err = pcall(renderImpl)
+  if not ok then
+    panel.render(ui.column({ flexGrow = 1, gap = 16 }, {
+      ui.label({ text = "PANEL ERROR:", fontWeight = "bold", color = "error" }),
+      ui.label({ text = tostring(err), color = "on_surface_variant" }),
+    }))
+  end
+end
+
+ready = true
