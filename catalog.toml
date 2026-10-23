@@ -3971,16 +3971,3 @@ icon = "swords"
 description = "Taskwarrior in your bar: see pending and overdue counts, and add, edit, complete or delete tasks."
 plugin_api = 3
 tags = ["bar", "panel", "service", "productivity"]
-
-[[plugin]]
-id = "abuamar142/murattal"
-name = "Murattal"
-version = "0.1.0"
-updated_at = 1792749563
-added_at = 1792749563
-author = "abuamar142"
-license = "MIT"
-icon = "music-note"
-description = "Stream murottal Al-Qur'an per surah and qari from mp3quran.net via mpv."
-plugin_api = 24
-tags = ["bar", "panel", "service", "launcher", "audio", "media", "quran"]
