@@ -65,8 +65,8 @@ tags = ["system", "arch"]
 [[plugin]]
 id = "lucasoe/proton-pass"
 name = "Proton Pass"
-version = "0.1.0"
-updated_at = 1784084254
+version = "1.0.0"
+updated_at = 1792328166
 added_at = 1784084254
 author = "LucasOe"
 license = "MIT"
@@ -308,15 +308,21 @@ rev = "203aaef232cb47ba37c9b32af82f27225ea1916e"
 [[plugin]]
 id = "h465855hgg/lyrics"
 name = "Lyrics"
-version = "1.5.5"
-updated_at = 1789742557
+version = "1.5.8"
+updated_at = 1792587743
 added_at = 1784238037
 author = "h465855hgg"
 license = "MIT"
 icon = "music"
 description = "Synchronized lyrics with karaoke highlighting, animated transitions, and flexible lyric sources."
-plugin_api = 3
+plugin_api = 14
 tags = ["bar", "panel", "service", "music", "media", "animation"]
+
+[[plugin.release]]
+plugin_api = 3
+version = "1.5.7"
+updated_at = 1792531543
+rev = "87cd6e76931e69eb15c2de241ca27ce96ef3799e"
 
 [[plugin]]
 id = "whyoolw/dropwall"
@@ -534,8 +540,8 @@ rev = "7cc2a499e6d90b4f756a606bfaf38f014a465956"
 [[plugin]]
 id = "gustav0ar/drive-health"
 name = "Drive Health"
-version = "1.2.7"
-updated_at = 1791165669
+version = "1.2.8"
+updated_at = 1792347162
 added_at = 1784646878
 author = "Drive Health contributors"
 license = "MIT"
@@ -560,15 +566,15 @@ rev = "ff289e523fb3dca794979dd3476d336642296463"
 [[plugin]]
 id = "kenn/keybind-cheatsheet"
 name = "Keybind Cheatsheet"
-version = "0.3.0"
-updated_at = 1791247508
+version = "0.3.2"
+updated_at = 1792702527
 added_at = 1784677847
 author = "kenn"
 license = "MIT"
 icon = "keyboard"
-description = "Searchable keybindings for Mango, Hyprland, and Niri."
+description = "Searchable keybindings for Mango, Hyprland, and Niri, plus Fcitx5 input-method hotkeys."
 plugin_api = 9
-tags = ["bar", "panel", "utility", "system", "hyprland", "mangowc", "niri"]
+tags = ["bar", "panel", "utility", "system", "language", "hyprland", "mangowc", "niri"]
 
 [[plugin.release]]
 plugin_api = 4
@@ -592,8 +598,8 @@ tags = ["utility", "hyprland"]
 [[plugin]]
 id = "thepunkoff/pomodoro"
 name = "Pomodoro Timer"
-version = "1.3.0"
-updated_at = 1788385923
+version = "1.4.0"
+updated_at = 1792417460
 added_at = 1784728810
 author = "thepunkoff"
 license = "MIT"
@@ -805,8 +811,8 @@ tags = ["hardware", "utility", "desktop", "panel"]
 [[plugin]]
 id = "cleboost/hotspot"
 name = "Wi-Fi Hotspot"
-version = "1.1.0"
-updated_at = 1786612400
+version = "1.1.1"
+updated_at = 1792588716
 added_at = 1785174978
 author = "Cleboost"
 license = "MIT"
@@ -818,13 +824,13 @@ tags = ["network", "bar", "panel", "service", "shortcut", "utility", "system", "
 [[plugin]]
 id = "yuuto/arch-updater"
 name = "Arch Updater"
-version = "2.0.3"
-updated_at = 1788468899
+version = "2.1.0"
+updated_at = 1792590457
 added_at = 1785208995
 author = "yuuto"
 license = "MIT"
 icon = "package"
-description = "Check pacman, AUR and Flatpak updates, then upgrade in a terminal or in the background, with run history and rollback."
+description = "Check pacman, AUR and Flatpak updates, upgrade in a terminal or background, with rollback and .pacnew review."
 plugin_api = 9
 tags = ["arch", "bar", "panel", "launcher", "system", "utility"]
 
@@ -876,15 +882,21 @@ tags = ["launcher", "network", "utility", "development"]
 [[plugin]]
 id = "dunarand/bookmarks"
 name = "Bookmarks"
-version = "1.3.1"
-updated_at = 1785965768
+version = "1.3.2"
+updated_at = 1792587716
 added_at = 1785350683
 author = "dunarand"
 license = "MIT"
 icon = "bookmark"
 description = "A user-defined list of bookmarks. Each item has a label, a glyph, and a shell command."
-plugin_api = 13
+plugin_api = 33
 tags = ["launcher", "panel", "productivity", "utility"]
+
+[[plugin.release]]
+plugin_api = 13
+version = "1.3.1"
+updated_at = 1785965768
+rev = "87624091e4fa189c552b045482020f6644112533"
 
 [[plugin]]
 id = "dunarand/tmux-provider"
@@ -1135,8 +1147,8 @@ tags = ["utility", "productivity", "bar", "panel"]
 [[plugin]]
 id = "ezequiel/mango_layouts"
 name = "Mango Layouts"
-version = "1.0.0"
-updated_at = 1785788249
+version = "1.0.1"
+updated_at = 1792682998
 added_at = 1785788249
 author = "ezequiel"
 license = "MIT"
@@ -1355,8 +1367,8 @@ tags = ["system", "development", "utility", "bar", "panel", "service", "launcher
 [[plugin]]
 id = "davemhammer/opnsense"
 name = "OPNsense"
-version = "1.1.8"
-updated_at = 1792109079
+version = "1.2.0"
+updated_at = 1792347728
 added_at = 1786285462
 author = "davemhammer"
 license = "MIT"
@@ -1989,8 +2001,8 @@ tags = ["panel", "utility"]
 [[plugin]]
 id = "linux-fertxo/hyprland-visual-editor"
 name = "Hyprland Visual Editor"
-version = "2.0.1"
-updated_at = 1788198466
+version = "2.0.2"
+updated_at = 1792417341
 added_at = 1788117624
 author = "XimoCP (v4 original) + Hermy & linux-fertxo (v5 Luau port)"
 license = "MIT"
@@ -2002,8 +2014,8 @@ tags = ["hyprland", "animation", "theming", "panel", "bar"]
 [[plugin]]
 id = "mellotanica/launcher-pass"
 name = "Launcher pass"
-version = "2.6.0"
-updated_at = 1788198606
+version = "2.7.0"
+updated_at = 1792354817
 added_at = 1788118014
 author = "Marco Melletti"
 license = "MIT"
@@ -2216,8 +2228,8 @@ tags = ["bar", "panel", "niri", "utility"]
 [[plugin]]
 id = "liamwh/emoji-picker"
 name = "Emoji & Symbol Picker"
-version = "1.2.0"
-updated_at = 1792154981
+version = "1.2.1"
+updated_at = 1792588786
 added_at = 1788473658
 author = "liamwh"
 license = "MIT"
@@ -2242,8 +2254,8 @@ tags = ["desktop", "utility"]
 [[plugin]]
 id = "ashur-d/nvim-projects"
 name = "Neovim Projects"
-version = "1.1.0"
-updated_at = 1792067710
+version = "1.1.1"
+updated_at = 1792455490
 added_at = 1788572460
 author = "Ashur-D"
 license = "MIT"
@@ -2352,8 +2364,8 @@ tags = ["desktop", "time", "utility"]
 [[plugin]]
 id = "jrohland/claudecode"
 name = "Claude Code Usage"
-version = "1.0.1"
-updated_at = 1790099872
+version = "1.1.0"
+updated_at = 1792681586
 added_at = 1788734110
 author = "Nicolas Bellamy (Noctalia port by jrohland)"
 license = "MIT"
@@ -2507,8 +2519,8 @@ tags = ["bar", "desktop", "panel", "service", "animation", "media", "network", "
 [[plugin]]
 id = "prponkshe/umbriel-displays"
 name = "Umbriel Displays"
-version = "1.0.1"
-updated_at = 1790485959
+version = "1.0.3"
+updated_at = 1792588740
 added_at = 1789086907
 author = "prponkshe"
 license = "MIT"
@@ -2520,15 +2532,21 @@ tags = ["bar", "panel", "service", "hardware", "utility", "umbriel"]
 [[plugin]]
 id = "nightwatch75/claude-cockpit"
 name = "Claude Cockpit"
-version = "1.0.0"
-updated_at = 1791639110
+version = "1.1.1"
+updated_at = 1792681646
 added_at = 1789089483
 author = "nightwatch75"
 license = "MIT"
 icon = "robot"
 description = "Live Claude Code sessions and usage on the bar; manage sessions, skills and mods, edit CLAUDE.md files."
-plugin_api = 31
+plugin_api = 33
 tags = ["ai", "development", "bar", "panel", "service", "productivity"]
+
+[[plugin.release]]
+plugin_api = 31
+version = "1.0.0"
+updated_at = 1791639110
+rev = "441c27a0824593ae8186176c6eb5cec1e931307e"
 
 [[plugin.release]]
 plugin_api = 24
@@ -2721,8 +2739,8 @@ tags = ["panel", "service", "system"]
 [[plugin]]
 id = "shangshui0302/github-kanban"
 name = "GitHub Kanban"
-version = "0.2.4"
-updated_at = 1791376663
+version = "0.2.5"
+updated_at = 1792640460
 added_at = 1789390542
 author = "Shangshui0302"
 license = "MIT"
@@ -2773,8 +2791,8 @@ tags = ["audio", "music", "network", "panel", "bar", "utility"]
 [[plugin]]
 id = "fel/radio"
 name = "Radio"
-version = "0.1.0"
-updated_at = 1789561453
+version = "0.1.1"
+updated_at = 1792606430
 added_at = 1789561453
 author = "fel"
 license = "MIT"
@@ -2786,8 +2804,8 @@ tags = ["bar", "panel", "launcher", "service", "audio", "music", "media", "netwo
 [[plugin]]
 id = "fel/podcasts"
 name = "Podcasts"
-version = "0.1.0"
-updated_at = 1789561605
+version = "0.1.1"
+updated_at = 1792606204
 added_at = 1789561605
 author = "fel"
 license = "MIT"
@@ -3065,8 +3083,8 @@ tags = ["bar", "panel", "ai", "indicator", "utility"]
 [[plugin]]
 id = "riversyx/noctaproton-vpn"
 name = "NoctaProton VPN"
-version = "1.0.0"
-updated_at = 1790251619
+version = "1.0.1"
+updated_at = 1792546815
 added_at = 1790251619
 author = "RiverSyx"
 license = "GPL-3.0"
@@ -3163,8 +3181,8 @@ tags = ["system", "utility"]
 [[plugin]]
 id = "gamaraan/mx-control"
 name = "MX Control"
-version = "0.2.2"
-updated_at = 1790519199
+version = "0.2.3"
+updated_at = 1792499677
 added_at = 1790468021
 author = "gamaraan"
 license = "GPL-2.0-or-later"
@@ -3541,12 +3559,12 @@ tags = ["bar", "launcher", "panel", "utility"]
 [[plugin]]
 id = "miguelfm/ai-triage"
 name = "AI Triage"
-version = "1.0.0"
-updated_at = 1791591274
+version = "1.6.2"
+updated_at = 1792499749
 added_at = 1791591274
 author = "miguelfm"
 license = "MIT"
-icon = "brain"
+icon = "scale"
 description = "AI quota triage, smart model routing and rolling window kickstarting."
 plugin_api = 22
 tags = ["bar", "panel", "ai", "indicator", "utility"]
@@ -3554,8 +3572,8 @@ tags = ["bar", "panel", "ai", "indicator", "utility"]
 [[plugin]]
 id = "ismay/media-player-icon"
 name = "Media Player Icon"
-version = "1.0.0"
-updated_at = 1791640157
+version = "1.1.0"
+updated_at = 1792681714
 added_at = 1791640157
 author = "ismay"
 license = "MIT"
@@ -3710,8 +3728,8 @@ tags = ["desktop", "bar", "panel", "service", "hardware", "system", "indicator"]
 [[plugin]]
 id = "nickh/maildir"
 name = "Maildir"
-version = "0.0.4"
-updated_at = 1792032253
+version = "0.0.5"
+updated_at = 1792417404
 added_at = 1792012082
 author = "Nick Hastings"
 license = "MIT"
@@ -3762,8 +3780,8 @@ tags = ["bar", "launcher", "service", "shortcut", "time"]
 [[plugin]]
 id = "detluck/performance-plus"
 name = "Performance Plus"
-version = "0.2.0"
-updated_at = 1792156891
+version = "0.2.2"
+updated_at = 1792681873
 added_at = 1792156891
 author = "detluck"
 license = "MIT"
@@ -3775,8 +3793,8 @@ tags = ["gaming", "system", "utility"]
 [[plugin]]
 id = "quaversa/wfmu"
 name = "WFMU"
-version = "1.0.0"
-updated_at = 1792183243
+version = "1.0.1"
+updated_at = 1792417283
 added_at = 1792183243
 author = "quaversa"
 license = "MIT"
@@ -3812,11 +3830,154 @@ plugin_api = 32
 tags = ["ai", "development", "indicator", "bar", "panel", "niri"]
 
 [[plugin]]
+id = "micahg/nwg-displays"
+name = "NWG Display Profiles"
+version = "1.0.0"
+updated_at = 1792417513
+added_at = 1792417513
+author = "micahg"
+license = "MIT"
+icon = "device-desktop"
+description = "Switch nwg-displays display profiles from the bar, a panel, or the launcher."
+plugin_api = 26
+tags = ["bar", "panel", "launcher", "hyprland", "utility"]
+
+[[plugin]]
+id = "tordex/stdout"
+name = "stdout"
+version = "1.1.0"
+updated_at = 1792455518
+added_at = 1792417636
+author = "tordex"
+license = "MIT"
+icon = "terminal"
+description = "Run a command periodically and display its output as bar widget text"
+plugin_api = 28
+tags = ["utility", "indicator", "bar", "system"]
+
+[[plugin]]
+id = "ayagmar/binance"
+name = "Binance"
+version = "0.2.0"
+updated_at = 1792499706
+added_at = 1792417965
+author = "ayagmar"
+license = "MIT"
+icon = "currency-bitcoin"
+description = "Your Binance portfolio, Binance Stocks, a watchlist and price alerts, with a read-only key kept in your keyring."
+plugin_api = 32
+tags = ["bar", "panel", "service", "launcher", "desktop", "indicator", "privacy"]
+
+[[plugin]]
+id = "zyrex/nothing-ear"
+name = "Nothing Ear"
+version = "0.1.1"
+updated_at = 1792588827
+added_at = 1792534252
+author = "zyrex"
+license = "MIT"
+icon = "headphones"
+description = "Battery, noise control, EQ and auto mono audio for Nothing and CMF earbuds, controlled directly over Bluetooth."
+plugin_api = 28
+tags = ["audio", "bar", "panel", "desktop", "service", "hardware", "indicator"]
+
+[[plugin]]
+id = "amaurisd97/screen-capture"
+name = "Screen Capture"
+version = "0.1.0"
+updated_at = 1792588666
+added_at = 1792588666
+author = "amaurisd97"
+license = "MIT"
+icon = "video"
+description = "Record the screen, a single window or a region, with webcam and desktop+mic audio."
+plugin_api = 24
+tags = ["recording", "video", "utility"]
+
+[[plugin]]
+id = "johnnyp0t/niri-workspace-stack"
+name = "Niri Workspace Stack"
+version = "0.3.1"
+updated_at = 1792589522
+added_at = 1792589522
+author = "johnnyp0t"
+license = "MIT"
+icon = "stack-2"
+description = "Compact niri workspace stack with the active workspace's windows as app icons; three display modes."
+plugin_api = 32
+tags = ["bar", "indicator", "niri", "productivity"]
+
+[[plugin]]
+id = "miixz/audio-sticker"
+name = "Audio Reactive Sticker"
+version = "1.1.1"
+updated_at = 1792592381
+added_at = 1792589793
+author = "miixz"
+license = "MIT"
+icon = "photo"
+description = "Desktop sticker that fades in and out with audio playback."
+plugin_api = 24
+tags = ["desktop", "audio", "animation"]
+
+[[plugin]]
+id = "bagusk99/super-caffeine"
+name = "Super Caffeine"
+version = "1.0.0"
+updated_at = 1792683248
+added_at = 1792683248
+author = "bagusk99"
+license = "MIT"
+icon = "coffee"
+description = "One toggle for full stay-awake: Noctalia caffeine (no idle lock/sleep) plus a lid inhibitor (lid close won't suspend)."
+plugin_api = 3
+tags = ["bar", "indicator", "productivity", "service", "shortcut", "system", "utility"]
+
+[[plugin]]
+id = "zhangdm/inhibit-idle-while-watching"
+name = "Inhibit Idle While Watching"
+version = "0.2.0"
+updated_at = 1792691474
+added_at = 1792691474
+author = "zhangdm"
+license = "MIT"
+icon = "camera"
+description = "Checks for a face when idle is about to act and restarts the idle countdown while you keep watching."
+plugin_api = 24
+tags = ["service", "hardware", "privacy", "system", "utility"]
+
+[[plugin]]
+id = "nightwatch75/keysmith"
+name = "keysmith"
+version = "0.1.0"
+updated_at = 1792694825
+added_at = 1792694825
+author = "nightwatch75"
+license = "MIT"
+icon = "key"
+description = "Password, key, htpasswd and JWT tools: a bar glyph opens a tabbed generator and decoder panel."
+plugin_api = 24
+tags = ["bar", "panel", "utility"]
+
+[[plugin]]
+id = "asj/task-warrior"
+name = "Task Warrior"
+version = "2.0.0"
+updated_at = 1792694899
+added_at = 1792694899
+author = "Anders Doozer"
+license = "MIT"
+icon = "swords"
+description = "Taskwarrior in your bar: see pending and overdue counts, and add, edit, complete or delete tasks."
+plugin_api = 3
+tags = ["bar", "panel", "service", "productivity"]
+
+[[plugin]]
 id = "abuamar142/murattal"
 name = "Murattal"
 version = "0.1.0"
-updated_at = 1792748941
-added_at = 1792748941
+updated_at = 1792749563
+added_at = 1792749563
 author = "abuamar142"
 license = "MIT"
 icon = "music-note"

@@ -41,6 +41,7 @@ body:
         - asus-fan
         - asus-fans-controller-ec
         - asus-gpu-mode
+        - audio-sticker
         - audio-switcher
         - awwwall
         - ayet-kosesi
@@ -53,6 +54,7 @@ body:
         - bazaarsearch
         - beeminder
         - better-clock
+        - binance
         - bitdjinn
         - bloom
         - bookmarks
@@ -117,6 +119,7 @@ body:
         - ideapad-conservation-mode
         - iio_lock
         - imagemagick-clock
+        - inhibit-idle-while-watching
         - input-echo-bar
         - inventory-manager
         - ip-monitor
@@ -127,6 +130,7 @@ body:
         - keyboard-state
         - keychron-battery
         - keymap
+        - keysmith
         - keyviz
         - kineticwe-layouts
         - kwallet-secrets
@@ -168,14 +172,17 @@ body:
         - niri-ribbon
         - niri-rules-studio
         - niri-workspace-preview
+        - niri-workspace-stack
         - nix-monitor
         - nix-search
         - nix-status
         - noctaproton-vpn
         - noctes
         - noctwhspr
+        - nothing-ear
         - nvim-projects
         - nvtop
+        - nwg-displays
         - obs-control
         - obs-integration
         - obsidian
@@ -224,6 +231,7 @@ body:
         - rum-updates
         - run-path
         - saved-desktop-widgets
+        - screen-capture
         - screen-toolkit
         - share-wifi
         - sharednd
@@ -239,7 +247,9 @@ body:
         - spotify-lyrics
         - spotify-media
         - ssh-launcher
+        - stdout
         - sticky-notes
+        - super-caffeine
         - super-productivity
         - sway-mode
         - sway-scratchpad
@@ -251,6 +261,7 @@ body:
         - taildrop
         - tailnet
         - tailscale
+        - task-warrior
         - theme-switcher
         - thinkpad-fan
         - thinkpad-led
