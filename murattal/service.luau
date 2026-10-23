@@ -16,7 +16,7 @@ local hasSocat = noctalia.commandExists("socat")
 
 local reciters = {}
 local surahs = {}
-local status = { playing = false, name = "", reciterId = "", surahId = 1, volume = volume, url = "" }
+local status = { playing = false, name = "", reciterId = "", surahId = 1, volume = volume, url = "", repeatOne = false, speed = 1.0, sleepUntil = 0 }
 local lastSeq = -1
 local launchedAt = 0
 local deadStreak = 0
@@ -31,6 +31,9 @@ local function publish()
     surahId = status.surahId,
     volume = status.volume,
     url = status.url,
+    repeatOne = status.repeatOne == true,
+    speed = tonumber(status.speed) or 1.0,
+    sleepUntil = tonumber(status.sleepUntil) or 0,
   })
 end
 
@@ -114,6 +117,7 @@ local function launchMpv(url, name, onDone)
   local cmd = "rm -f " .. sq(SOCK) .. "; "
     .. "nohup " .. sq(mpvBin) .. " --no-video --input-ipc-server=" .. sq(SOCK)
     .. " --volume=" .. tostring(status.volume)
+    .. " --speed=" .. tostring(status.speed or 1.0)
     .. " --title=" .. sq("quran: " .. name)
     .. " -- " .. sq(url) .. " >" .. sq(dataDir .. "/mpv.log") .. " 2>&1 & "
     .. "echo $! >> " .. sq(PIDFILE)
@@ -297,6 +301,42 @@ local function doVolume(v)
   end
 end
 
+local function doSpeed(v)
+  v = tonumber(v)
+  if v == nil then return end
+  if v < 0.5 then v = 0.5 end
+  if v > 2.0 then v = 2.0 end
+  status.speed = v
+  publish()
+  if not status.playing then return end
+  if hasSocat then
+    enqueue(function(done)
+      noctalia.runAsync(mpvCmd('{"command":["set_property","speed",' .. tostring(v) .. "]}"), function()
+        done()
+      end)
+    end)
+  end
+end
+
+local function doRepeat(value)
+  if value == nil then
+    status.repeatOne = not (status.repeatOne == true)
+  else
+    status.repeatOne = (value == true or value == "true" or value == 1 or value == "1")
+  end
+  publish()
+end
+
+local function doSleep(minutes)
+  minutes = tonumber(minutes) or 0
+  if minutes <= 0 then
+    status.sleepUntil = 0
+  else
+    status.sleepUntil = os.time() + math.floor(minutes * 60)
+  end
+  publish()
+end
+
 local function handleRequest(req)
   if type(req) ~= "table" then return end
   local seq = tonumber(req.seq) or -1
@@ -311,6 +351,12 @@ local function handleRequest(req)
     if status.playing then doStop() else doPlay(status.reciterId, status.surahId) end
   elseif req.action == "volume" then
     doVolume(req.volume)
+  elseif req.action == "speed" then
+    doSpeed(req.speed)
+  elseif req.action == "repeat" then
+    doRepeat(req.value)
+  elseif req.action == "sleep" then
+    doSleep(req.minutes)
   elseif req.action == "next" then
     local i = 1
     for idx, s in ipairs(surahs) do
@@ -348,6 +394,11 @@ function update()
     noctalia.log("[quran] queue stuck, reset")
     queue, queueBusy = {}, false
   end
+  if status.playing and (tonumber(status.sleepUntil) or 0) > 0 and os.time() >= tonumber(status.sleepUntil) then
+    status.sleepUntil = 0
+    doStop()
+    return
+  end
   if status.playing then
     if os.time() - launchedAt < 8 then return end
     aliveCheck(function(alive)
@@ -367,6 +418,10 @@ function update()
         noctalia.notifyError("Quran", "Gagal memutar (" .. name .. ")")
         noctalia.log("[quran] mpv died fast, see mpv.log")
       else
+        if status.repeatOne == true then
+          doPlay(status.reciterId, status.surahId)
+          return
+        end
         -- natural end: advance to next surah
         local i = 1
         for idx, s in ipairs(surahs) do
@@ -414,6 +469,14 @@ function onIpc(event, payload)
     handleRequest({ seq = lastSeq + 1, action = "next" })
   elseif event == "prev" then
     handleRequest({ seq = lastSeq + 1, action = "prev" })
+  elseif event == "speed" then
+    local v = tonumber(payload)
+    if v then handleRequest({ seq = lastSeq + 1, action = "speed", speed = v }) end
+  elseif event == "repeat" then
+    handleRequest({ seq = lastSeq + 1, action = "repeat" })
+  elseif event == "sleep" then
+    local m = tonumber(payload)
+    if m then handleRequest({ seq = lastSeq + 1, action = "sleep", minutes = m }) end
   elseif event == "refresh" then
     fetchCatalog()
   end
