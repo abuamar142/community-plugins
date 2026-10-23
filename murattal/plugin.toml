@@ -7,7 +7,7 @@ license = "MIT"
 icon = "music-note"
 description = "Stream murottal Al-Qur'an per surah and qari from mp3quran.net via mpv."
 dependencies = ["mpv", "socat"]
-tags = ["bar", "panel", "service", "audio", "media", "quran"]
+tags = ["bar", "panel", "service", "launcher", "audio", "media", "music"]
 
 [[setting]]
 key = "default_volume"

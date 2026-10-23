@@ -1,10 +1,20 @@
 {
-  "settings.default_volume.label": "Default volume",
-  "settings.default_volume.description": "mpv volume 0-100 used until changed.",
-  "settings.mpv_bin.label": "mpv binary",
-  "settings.mpv_bin.description": "mpv executable for headless playback.",
-  "settings.show_name.label": "Show surah name",
-  "settings.show_name.description": "Show current surah next to the icon.",
-  "settings.max_length.label": "Max name length",
-  "settings.max_length.description": "Max characters of the surah name."
+  "settings": {
+    "default_volume": {
+      "label": "Default volume",
+      "description": "mpv volume 0-100 used until changed."
+    },
+    "mpv_bin": {
+      "label": "mpv binary",
+      "description": "mpv executable for headless playback."
+    },
+    "show_name": {
+      "label": "Show surah name",
+      "description": "Show current surah next to the icon."
+    },
+    "max_length": {
+      "label": "Max name length",
+      "description": "Max characters of the surah name."
+    }
+  }
 }
