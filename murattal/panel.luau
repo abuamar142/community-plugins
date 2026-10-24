@@ -1,17 +1,37 @@
 --!nonstrict
--- Murattal panel: searchable qari/surah dropdowns, playback card, favorites.
+-- Murattal panel: two tabs.
+--   "Putar" — playback card, juz queue, qari (filterable by riwayah), surah,
+--             offline cache, repeat/shuffle, speed, sleep timer, favorites.
+--   "Teks"  — the Arabic text of the current surah with optional Latin and
+--             Indonesian translation, paged, cached on disk.
 local ready = false
 local render
 
 local reciters = noctalia.state.get("quran_reciters") or {}
 local surahs = noctalia.state.get("quran_surahs") or {}
+local rewayas = noctalia.state.get("quran_rewayas") or {}
+local juzList = noctalia.state.get("quran_juz") or {}
+local cacheMap = noctalia.state.get("quran_cache") or {}
 local status = noctalia.state.get("quran_status") or {
   playing = false, name = "", reciterId = "", surahId = 1, volume = 65, url = "",
-  repeatOne = false, shuffle = false, speed = 1.0, sleepUntil = 0, position = 0, duration = 0,
+  cached = false, repeatOne = false, repeatCount = 1, repeatDone = 0, shuffle = false,
+  speed = 1.0, sleepUntil = 0, position = 0, duration = 0,
+  queue = {}, queueIndex = 0, juz = 0, downloading = {},
 }
 local favorites = noctalia.state.get("quran_favorites") or {}
 
-local favPath = noctalia.pluginDataDir() .. "/favorites.json"
+local dataDir = noctalia.pluginDataDir()
+local favPath = dataDir .. "/favorites.json"
+local textDir = dataDir .. "/text"
+
+local showTranslation = noctalia.getConfig("show_translation") ~= false
+local showLatin = noctalia.getConfig("show_latin") == true
+
+local TEXT_PER_PAGE = 20
+
+local activeTab = "player"
+local textCache, textLoading, textError = {}, {}, {}
+local textPage = 1
 
 local function reciterById(id)
   for _, r in ipairs(reciters) do
@@ -38,8 +58,8 @@ end
 local function loadFavorites()
   local raw = noctalia.readFile(favPath)
   if raw then
-    local data = noctalia.json.decode(raw)
-    if type(data) == "table" then favorites = data end
+    local ok, data = pcall(function() return noctalia.json.decode(raw) end)
+    if ok and type(data) == "table" then favorites = data end
   end
   noctalia.state.set("quran_favorites", favorites)
 end
@@ -79,23 +99,26 @@ local function toggleFav(surahId, reciterId)
   refresh()
 end
 
-noctalia.state.watch("quran_reciters", function(v)
-  reciters = v or reciters
-  refresh()
-end)
-noctalia.state.watch("quran_surahs", function(v)
-  surahs = v or surahs
-  refresh()
-end)
+noctalia.state.watch("quran_reciters", function(v) reciters = v or reciters; refresh() end)
+noctalia.state.watch("quran_surahs", function(v) surahs = v or surahs; refresh() end)
+noctalia.state.watch("quran_rewayas", function(v) rewayas = v or rewayas; refresh() end)
+noctalia.state.watch("quran_juz", function(v) juzList = v or juzList; refresh() end)
+noctalia.state.watch("quran_cache", function(v) cacheMap = v or {}; refresh() end)
 noctalia.state.watch("quran_status", function(v)
   if type(v) == "table" then
     status = v
     status.repeatOne = status.repeatOne == true
     status.shuffle = status.shuffle == true
+    status.cached = status.cached == true
     status.speed = tonumber(status.speed) or 1.0
     status.sleepUntil = tonumber(status.sleepUntil) or 0
     status.position = tonumber(status.position) or 0
     status.duration = tonumber(status.duration) or 0
+    status.repeatCount = tonumber(status.repeatCount) or 1
+    status.queue = status.queue or {}
+    status.queueIndex = tonumber(status.queueIndex) or 0
+    status.juz = tonumber(status.juz) or 0
+    status.downloading = status.downloading or {}
   end
   refresh()
 end)
@@ -106,12 +129,16 @@ end)
 
 local qariOpen, surahOpen = false, false
 local qariQuery, surahQuery = "", ""
+local rewayaFilter = ""
 local speedIndex, sleepIndex = 1, 0
+local seekPending = nil
 
 local speedValues = {0.75, 1.0, 1.25, 1.5}
 local speedLabels = {"0.75x", "1.0x", "1.25x", "1.5x"}
 local sleepLabels = {"Off", "15 min", "30 min", "45 min", "60 min"}
 local sleepValues = {0, 15, 30, 45, 60}
+local repeatLabels = {"1x", "2x", "3x", "5x"}
+local repeatValues = {1, 2, 3, 5}
 
 local function req(action, extra)
   local prev = noctalia.state.get("quran_request")
@@ -129,7 +156,8 @@ local function filterReciters(q)
   local out = {}
   for _, r in ipairs(reciters) do
     local label = (r.label or r.name or ""):lower()
-    if q == "" or label:find(q, 1, true) or tostring(r.id):lower():find(q, 1, true) then
+    local rewayaOk = rewayaFilter == "" or tostring(r.rewaya or "") == rewayaFilter
+    if rewayaOk and (q == "" or label:find(q, 1, true) or tostring(r.id):lower():find(q, 1, true)) then
       table.insert(out, r)
       if #out >= 40 then break end
     end
@@ -176,6 +204,7 @@ local function selectSurah(s)
   status.surahId = s.id
   surahOpen = false
   surahQuery = ""
+  textPage = 1
   refresh()
 end
 
@@ -186,6 +215,71 @@ local function fmtTime(sec)
   local s = sec % 60
   return string.format("%02d:%02d", m, s)
 end
+
+local function isCached(surahId, reciterId)
+  return cacheMap[tostring(reciterId) .. ":" .. tostring(surahId)] ~= nil
+end
+
+-- Mirrors the service: sleep is stored as an absolute deadline, so derive the
+-- dropdown position from the remaining time instead of local UI state.
+local function sleepIndexOf()
+  local untilAt = tonumber(status.sleepUntil) or 0
+  if untilAt <= 0 then return 0 end
+  local remain = untilAt - os.time()
+  if remain <= 0 then return 0 end
+  for i, v in ipairs(sleepValues) do
+    if v > 0 and remain <= v * 60 then return i - 1 end
+  end
+  return #sleepValues - 1
+end
+
+local function repeatIndexOf()
+  local n = tonumber(status.repeatCount) or 1
+  for i, v in ipairs(repeatValues) do
+    if v == n then return i - 1 end
+  end
+  return 0
+end
+
+-- ── surah text ───────────────────────────────────────────────────────────────
+
+local function textPath(n)
+  return textDir .. "/" .. tostring(n) .. ".json"
+end
+
+local function loadText(n)
+  n = tonumber(n)
+  if not n or textLoading[n] or textCache[n] then return end
+  local raw = noctalia.readFile(textPath(n))
+  if raw then
+    local ok, data = pcall(function() return noctalia.json.decode(raw) end)
+    if ok and type(data) == "table" and type(data.ayat) == "table" then
+      textCache[n] = data
+      return
+    end
+  end
+  textLoading[n] = true
+  textError[n] = ""
+  refresh()
+  noctalia.http({ url = "https://equran.id/api/v2/surat/" .. tostring(n) }, function(res)
+    textLoading[n] = nil
+    if res and res.ok then
+      local ok, data = pcall(function() return noctalia.json.decode(res.body) end)
+      if ok and type(data) == "table" and type(data.data) == "table" and type(data.data.ayat) == "table" then
+        textCache[n] = data.data
+        noctalia.runAsync("mkdir -p " .. "'" .. textDir .. "'", nil)
+        noctalia.writeFile(textPath(n), noctalia.json.encode(data.data) or "{}")
+      else
+        textError[n] = "Respons tidak dikenal"
+      end
+    else
+      textError[n] = "Gagal memuat (jaringan)"
+    end
+    refresh()
+  end)
+end
+
+-- ── widgets ──────────────────────────────────────────────────────────────────
 
 local function dropdown(props)
   local children = {
@@ -227,7 +321,25 @@ local function dropdown(props)
   return ui.column({ gap = 6 }, children)
 end
 
-render = function()
+local function tabButton(id, label)
+  return ui.button({
+    key = "tab-" .. id,
+    text = label,
+    flexGrow = 1,
+    variant = activeTab == id and "secondary" or "ghost",
+    onClick = function()
+      if activeTab ~= id then
+        activeTab = id
+        qariOpen, surahOpen = false, false
+        refresh()
+      end
+    end,
+  })
+end
+
+-- ── player tab ───────────────────────────────────────────────────────────────
+
+local function renderPlayer()
   local playing = status.playing == true
   local pos = tonumber(status.position) or 0
   local dur = tonumber(status.duration) or 0
@@ -239,6 +351,7 @@ render = function()
   for i, v in ipairs(speedValues) do
     if math.abs(v - sp) < 0.01 then speedIndex = i - 1 end
   end
+  sleepIndex = sleepIndexOf()
 
   local qariItems = filterReciters(qariQuery)
   local surahItems = filterSurahs(surahQuery)
@@ -256,21 +369,66 @@ render = function()
     favRows[1] = ui.label({ text = "Belum ada favorit", color = "on_surface_variant", fontSize = 11 })
   end
 
+  local juzOptions = {}
+  for i = 1, 30 do
+    juzOptions[i] = "Juz " .. tostring(i)
+  end
+  local curJuz = tonumber(status.juz) or 0
+
+  local rewayaOptions = {"Semua riwayah"}
+  local rewayaIndex = 0
+  for i, rw in ipairs(rewayas) do
+    rewayaOptions[#rewayaOptions + 1] = rw.name or tostring(rw.id)
+    if rewayaFilter ~= "" and rw.name == rewayaFilter then rewayaIndex = i end
+  end
+
+  local sid = tonumber(status.surahId) or 1
+  local rid = status.reciterId
+  local cachedNow = isCached(sid, rid)
+  local busy = status.downloading[tostring(sid)] == true
+  local queueLen = #(status.queue or {})
+  local queuePos = tonumber(status.queueIndex) or 0
+
+  local queueLine
+  if queueLen > 0 then
+    queueLine = string.format("Juz %d · surah %d dari %d", curJuz, queuePos, queueLen)
+  else
+    queueLine = "Antrean kosong — pilih juz untuk memutar berurutan"
+  end
+
   panel.render(ui.scroll({ flexGrow = 1, gap = 12 }, {
     ui.row({ align = "center", justify = "space_between", gap = 8 }, {
       ui.label({ text = "Murottal Al-Qur'an", fontSize = 16, fontWeight = "bold", flexGrow = 1 }),
       ui.button({ glyph = "close", onClick = function() panel.close() end }),
     }),
 
+    ui.row({ gap = 6 }, {
+      tabButton("player", "Putar"),
+      tabButton("text", "Teks"),
+    }),
+
     ui.column({ gap = 6, padding = 12, radius = 10, fill = "surface_variant/0.35" }, {
-      ui.label({ text = curSurah and (curSurah.name or "") or "Belum ada surah", fontSize = 14, fontWeight = "bold" }),
+      ui.row({ gap = 8, align = "center" }, {
+        ui.label({ text = curSurah and (curSurah.name or "") or "Belum ada surah", fontSize = 14, fontWeight = "bold", flexGrow = 1, maxLines = 1 }),
+        ui.label({
+          text = cachedNow and "offline" or "",
+          fontSize = 9,
+          color = "primary",
+        }),
+      }),
       ui.label({ text = curReciter and (curReciter.name or "") or "Pilih qari", fontSize = 11, color = "on_surface_variant", maxLines = 1 }),
       ui.slider({
         min = 0,
         max = math.max(1, dur),
         step = 1,
         value = math.min(pos, math.max(1, dur)),
-        onChange = function(v) req("seek", { seconds = tonumber(v) or 0 }) end,
+        onChange = function(v) seekPending = tonumber(v) or 0 end,
+        onDragEnd = function()
+          if seekPending then
+            req("seek", { seconds = seekPending })
+            seekPending = nil
+          end
+        end,
       }),
       ui.row({ justify = "space_between" }, {
         ui.label({ text = fmtTime(pos) .. " / " .. fmtTime(dur), fontSize = 10, color = "on_surface_variant" }),
@@ -299,22 +457,60 @@ render = function()
 
     ui.separator({}),
 
-    dropdown({
-      key = "qari",
-      open = qariOpen,
-      query = qariQuery,
-      current = currentReciterLabel(),
-      placeholder = "Cari qari...",
-      items = qariItems,
-      label = function(r) return r.label or r.name or tostring(r.id) end,
-      isSelected = function(r) return tostring(r.id) == tostring(status.reciterId) end,
-      onToggle = function()
-        qariOpen = not qariOpen
-        if qariOpen then surahOpen = false end
-        refresh()
-      end,
-      onQuery = function(v) qariQuery = tostring(v or ""); refresh() end,
-      onPick = function(r) selectReciter(r) end,
+    ui.column({ gap = 6 }, {
+      ui.row({ gap = 8, align = "center" }, {
+        ui.select({
+          options = juzOptions,
+          selectedIndex = math.max(0, curJuz - 1),
+          flexGrow = 1,
+          onChange = function(index)
+            local n = (tonumber(index) or 0) + 1
+            req("juz", { juz = n })
+          end,
+        }),
+        ui.button({
+          text = "Putar juz",
+          variant = "primary",
+          onClick = function()
+            req("juz", { juz = math.max(1, curJuz) })
+          end,
+        }),
+      }),
+      ui.label({ text = queueLine, fontSize = 10, color = "on_surface_variant" }),
+    }),
+
+    ui.column({ gap = 6 }, {
+      ui.row({ gap = 8, align = "center" }, {
+        ui.label({ text = "Riwayah", fontSize = 11, color = "on_surface_variant", width = 52 }),
+        ui.select({
+          options = rewayaOptions,
+          selectedIndex = rewayaIndex,
+          flexGrow = 1,
+          onChange = function(index)
+            local i = (tonumber(index) or 0) + 1
+            rewayaFilter = (i == 1) and "" or (rewayaOptions[i] or "")
+            qariOpen = false
+            refresh()
+          end,
+        }),
+      }),
+      dropdown({
+        key = "qari",
+        open = qariOpen,
+        query = qariQuery,
+        current = currentReciterLabel(),
+        placeholder = "Cari qari...",
+        items = qariItems,
+        label = function(r) return r.label or r.name or tostring(r.id) end,
+        isSelected = function(r) return tostring(r.id) == tostring(status.reciterId) end,
+        onToggle = function()
+          qariOpen = not qariOpen
+          if qariOpen then surahOpen = false end
+          refresh()
+        end,
+        onQuery = function(v) qariQuery = tostring(v or ""); refresh() end,
+        onPick = function(r) selectReciter(r) end,
+      }),
     }),
 
     dropdown({
@@ -335,6 +531,22 @@ render = function()
       onPick = function(s) selectSurah(s) end,
     }),
 
+    ui.row({ gap = 8, align = "center" }, {
+      ui.button({
+        text = busy and "Mengunduh…" or (cachedNow and "Hapus unduhan" or "Unduh surah"),
+        flexGrow = 1,
+        enabled = not busy,
+        variant = cachedNow and "ghost" or "outline",
+        onClick = function()
+          if cachedNow then
+            req("removeDownload", { surahId = sid })
+          else
+            req("download", { surahId = sid })
+          end
+        end,
+      }),
+    }),
+
     ui.separator({}),
 
     ui.row({ gap = 8 }, {
@@ -343,7 +555,18 @@ render = function()
     }),
 
     ui.row({ gap = 8, align = "center" }, {
-      ui.label({ text = "Kecepatan", fontSize = 11, color = "on_surface_variant", width = 70 }),
+      ui.label({ text = "Ulangi", fontSize = 11, color = "on_surface_variant", width = 52 }),
+      ui.select({
+        options = repeatLabels,
+        selectedIndex = repeatIndexOf(),
+        flexGrow = 1,
+        onChange = function(index)
+          local i = (tonumber(index) or 0) + 1
+          req("repeatCount", { value = repeatValues[i] or 1 })
+          refresh()
+        end,
+      }),
+      ui.label({ text = "Speed", fontSize = 11, color = "on_surface_variant", width = 44 }),
       ui.select({
         options = speedLabels,
         selectedIndex = speedIndex,
@@ -357,17 +580,28 @@ render = function()
           end
         end,
       }),
-      ui.label({ text = "Sleep", fontSize = 11, color = "on_surface_variant", width = 40 }),
+    }),
+
+    ui.row({ gap = 8, align = "center" }, {
+      ui.label({ text = "Sleep", fontSize = 11, color = "on_surface_variant", width = 52 }),
       ui.select({
         options = sleepLabels,
         selectedIndex = sleepIndex,
         flexGrow = 1,
         onChange = function(index)
           local i = (tonumber(index) or 0) + 1
-          sleepIndex = i - 1
           req("sleep", { minutes = sleepValues[i] or 0 })
           refresh()
         end,
+      }),
+      ui.label({
+        text = (tonumber(status.sleepUntil) or 0) > 0
+          and (fmtTime(math.max(0, (tonumber(status.sleepUntil) or 0) - os.time())) .. " lagi")
+          or "",
+        fontSize = 10,
+        color = "on_surface_variant",
+        width = 70,
+        textAlign = "end",
       }),
     }),
 
@@ -381,6 +615,127 @@ render = function()
       ui.scroll({ height = 150, gap = 4 }, favRows),
     }),
   }))
+end
+
+-- ── text tab ─────────────────────────────────────────────────────────────────
+
+local function renderText()
+  local sid = tonumber(status.surahId) or 1
+  loadText(sid)
+  local doc = textCache[sid]
+  local body = {}
+
+  if textLoading[sid] then
+    body[1] = ui.label({ text = "Memuat teks…", fontSize = 11, color = "on_surface_variant" })
+  elseif not doc then
+    body[1] = ui.label({
+      text = (textError[sid] ~= "" and textError[sid]) or "Teks belum tersedia",
+      fontSize = 11,
+      color = "error",
+    })
+    body[2] = ui.button({
+      text = "Coba lagi",
+      controlSize = "sm",
+      variant = "outline",
+      onClick = function()
+        textError[sid] = ""
+        refresh()
+      end,
+    })
+  else
+    local ayat = doc.ayat or {}
+    local total = #ayat
+    local pages = math.max(1, math.ceil(total / TEXT_PER_PAGE))
+    if textPage > pages then textPage = pages end
+    local from = (textPage - 1) * TEXT_PER_PAGE + 1
+    local to = math.min(total, textPage * TEXT_PER_PAGE)
+
+    body[#body + 1] = ui.row({ justify = "space_between", align = "center" }, {
+      ui.label({
+        text = string.format("%s · %s · %d ayat", tostring(doc.namaLatin or ""), tostring(doc.arti or ""), total),
+        fontSize = 11,
+        color = "on_surface_variant",
+        flexGrow = 1,
+        maxLines = 1,
+      }),
+    })
+
+    if pages > 1 then
+      body[#body + 1] = ui.row({ gap = 8, align = "center" }, {
+        ui.button({
+          glyph = "chevron-left",
+          controlSize = "sm",
+          enabled = textPage > 1,
+          onClick = function()
+            textPage = math.max(1, textPage - 1)
+            refresh()
+          end,
+        }),
+        ui.label({
+          text = string.format("%d–%d / %d", from, to, total),
+          fontSize = 10,
+          color = "on_surface_variant",
+          flexGrow = 1,
+          textAlign = "center",
+        }),
+        ui.button({
+          glyph = "chevron-right",
+          controlSize = "sm",
+          enabled = textPage < pages,
+          onClick = function()
+            textPage = math.min(pages, textPage + 1)
+            refresh()
+          end,
+        }),
+      })
+    end
+
+    for i = from, to do
+      local a = ayat[i]
+      if a then
+        local rows = {
+          ui.row({ gap = 8, align = "start" }, {
+            ui.label({ text = tostring(a.nomorAyat or i), fontSize = 10, color = "primary", width = 26 }),
+            ui.label({ text = tostring(a.teksArab or ""), fontSize = 18, flexGrow = 1, textAlign = "end" }),
+          }),
+        }
+        if showLatin and a.teksLatin and a.teksLatin ~= "" then
+          rows[#rows + 1] = ui.label({ text = tostring(a.teksLatin), fontSize = 10, color = "on_surface_variant" })
+        end
+        if showTranslation and a.teksIndonesia and a.teksIndonesia ~= "" then
+          rows[#rows + 1] = ui.label({ text = tostring(a.teksIndonesia), fontSize = 11, color = "on_surface_variant" })
+        end
+        body[#body + 1] = ui.column({ gap = 4, padding = 8, radius = 8, fill = "surface_variant/0.25" }, rows)
+      end
+    end
+  end
+
+  panel.render(ui.scroll({ flexGrow = 1, gap = 12 }, {
+    ui.row({ align = "center", justify = "space_between", gap = 8 }, {
+      ui.label({ text = "Murottal Al-Qur'an", fontSize = 16, fontWeight = "bold", flexGrow = 1 }),
+      ui.button({ glyph = "close", onClick = function() panel.close() end }),
+    }),
+
+    ui.row({ gap = 6 }, {
+      tabButton("player", "Putar"),
+      tabButton("text", "Teks"),
+    }),
+
+    ui.row({ gap = 8, align = "center" }, {
+      ui.label({ text = surahNameById(sid), fontSize = 14, fontWeight = "bold", flexGrow = 1, maxLines = 1 }),
+      ui.button({ glyph = "player-play", controlSize = "sm", tooltip = "Play", onClick = function() req("play", { reciterId = status.reciterId, surahId = sid }) end }),
+    }),
+
+    ui.column({ gap = 10 }, body),
+  }))
+end
+
+render = function()
+  if activeTab == "text" then
+    renderText()
+  else
+    renderPlayer()
+  end
 end
 
 function onOpen(_context)

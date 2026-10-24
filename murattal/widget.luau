@@ -13,7 +13,7 @@ local function req(action, extra)
   local seq = 0
   if type(prev) == "table" and tonumber(prev.seq) then seq = tonumber(prev.seq) end
   local r = { seq = seq + 1, action = action }
-  if type(extra) == "table" then for k,v in extra do r[k]=v end end
+  if type(extra) == "table" then for k,v in pairs(extra) do r[k]=v end end
   noctalia.state.set("quran_request", r)
 end
 

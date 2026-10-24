@@ -1,6 +1,6 @@
 id = "abuamar142/murattal"
 name = "Murattal"
-version = "0.1.0"
+version = "0.2.0"
 plugin_api = 24
 author = "abuamar142"
 license = "MIT"
@@ -54,6 +54,20 @@ width = 600
 height = 720
 placement = "floating"
 position = "center"
+
+  [[panel.setting]]
+  key = "show_translation"
+  type = "bool"
+  label_key = "settings.show_translation.label"
+  description_key = "settings.show_translation.description"
+  default = true
+
+  [[panel.setting]]
+  key = "show_latin"
+  type = "bool"
+  label_key = "settings.show_latin.label"
+  description_key = "settings.show_latin.description"
+  default = false
 
 [[launcher_provider]]
 id = "finder"
