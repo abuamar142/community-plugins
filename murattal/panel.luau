@@ -267,8 +267,11 @@ local function loadText(n)
       local ok, data = pcall(function() return noctalia.json.decode(res.body) end)
       if ok and type(data) == "table" and type(data.data) == "table" and type(data.data.ayat) == "table" then
         textCache[n] = data.data
-        noctalia.runAsync("mkdir -p " .. "'" .. textDir .. "'", nil)
-        noctalia.writeFile(textPath(n), noctalia.json.encode(data.data) or "{}")
+        local payload = noctalia.json.encode(data.data) or "{}"
+        -- mkdirAll is synchronous; a missing directory makes writeFile fail
+        -- silently, which is why the cache used to vanish.
+        noctalia.mkdirAll(textDir)
+        noctalia.writeFile(textPath(n), payload)
       else
         textError[n] = "Respons tidak dikenal"
       end
