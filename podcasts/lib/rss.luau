@@ -49,6 +49,8 @@ end
 
 -- True when "%s+" would actually change the string: any whitespace other than
 -- a single space, or two adjacent spaces.
+-- The list below is exhaustive because `%s` is exactly space \t \n \r \f \v in
+-- Luau. Keep it in sync if `%s` ever changes.
 local function needsCollapse(s)
   return string.find(s, "\n", 1, true) ~= nil
     or string.find(s, "\t", 1, true) ~= nil
