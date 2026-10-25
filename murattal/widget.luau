@@ -24,13 +24,15 @@ local function shortName()
 end
 
 function render()
-  barWidget.setGlyph(status.playing and "player-pause-filled" or "player-play-filled")
+  local active = status.playing == true and status.paused ~= true
+  barWidget.setGlyph(active and "player-pause-filled" or "player-play-filled")
   if showName then
     barWidget.setText(shortName() ~= "" and shortName() or "Quran")
   else
     barWidget.setText("")
   end
-  barWidget.setTooltip((status.playing and "Playing: " or "Paused: ") .. (status.name or ""))
+  local label = status.playing and (status.paused and "Paused: " or "Playing: ") or "Stopped: "
+  barWidget.setTooltip(label .. (status.name or ""))
 end
 
 function update()

@@ -36,11 +36,12 @@ local slugMap = {}
 local status = {
   playing = false, name = "", reciterId = "", surahId = 1, volume = volume, url = "",
   cached = false, repeatOne = false, repeatCount = 1, repeatDone = 0, speed = 1.0,
-  sleepUntil = 0, shuffle = false, position = 0, duration = 0,
+  sleepUntil = 0, shuffle = false, position = 0, duration = 0, paused = false,
   queue = {}, queueIndex = 0, juz = 0, downloading = {},
 }
 local lastSeq = -1
 local launchedAt = 0
+local launchedFrom = 0
 local lastSavedAt = 0
 local deadStreak = 0
 local playGen = 0
@@ -80,6 +81,7 @@ local function publish()
     shuffle = status.shuffle == true,
     position = tonumber(status.position) or 0,
     duration = tonumber(status.duration) or 0,
+    paused = status.paused == true,
     queue = status.queue,
     queueIndex = tonumber(status.queueIndex) or 0,
     juz = tonumber(status.juz) or 0,
@@ -281,7 +283,6 @@ local function launchMpv(src, name, startAt, onDone)
     .. " --speed=" .. tostring(status.speed or 1.0)
     .. startArg
     .. " --title=" .. sq("quran: " .. name)
-    .. (hasMpris and (" --script=" .. sq("/usr/lib/mpv/mpris.so")) or "")
     .. " -- " .. sq(src) .. " >" .. sq(dataDir .. "/mpv.log") .. " 2>&1 & "
     .. "echo $! >> " .. sq(PIDFILE)
   noctalia.writeFile(dataDir .. "/lastcmd.txt", cmd)
@@ -434,6 +435,7 @@ doPlay = function(reciterId, surahId, opts)
   status.url = src
   status.cached = cached
   status.playing = true
+  status.paused = false
   status.position = startAt
   status.duration = 0
   status.repeatDone = tonumber(opts.repeatDone) or 0
@@ -458,6 +460,7 @@ doPlay = function(reciterId, surahId, opts)
         noctalia.log("[quran] launched=" .. tostring(launched) .. " cached=" .. tostring(cached) .. " start=" .. tostring(startAt))
         if launched then
           launchedAt = os.time()
+          launchedFrom = startAt
           deadStreak = 0
           publish()
         else
@@ -620,20 +623,25 @@ end
 
 local function queryProgress()
   if not hasSocat or not status.playing then return end
-  local cmd = "{ printf '%s\\n' '{\"command\":[\"get_property\",\"playback-time\"],\"request_id\":1}' '{\"command\":[\"get_property\",\"duration\"],\"request_id\":2}'; } | socat - " .. sq(SOCK)
+  local cmd = "{ printf '%s\\n' '{\"command\":[\"get_property\",\"playback-time\"],\"request_id\":1}' '{\"command\":[\"get_property\",\"duration\"],\"request_id\":2}' '{\"command\":[\"get_property\",\"pause\"],\"request_id\":3}'; } | socat - " .. sq(SOCK)
   noctalia.runAsync(cmd, function(res)
     if not (res and res.exitCode == 0) then return end
     local pos, dur = status.position, status.duration
+    local paused
     for line in tostring(res.stdout or ""):gmatch("[^\r\n]+") do
       local ok, data = pcall(function() return noctalia.json.decode(line) end)
       if ok and type(data) == "table" and data.request_id and data.data ~= nil then
         if data.request_id == 1 then pos = tonumber(data.data) or pos end
         if data.request_id == 2 then dur = tonumber(data.data) or dur end
+        if data.request_id == 3 then paused = (data.data == true) end
       end
     end
     if status.playing then
       status.position = pos
       status.duration = dur
+      -- Media keys and the bar's media widget pause mpv behind our back; mirror
+      -- that so the widget glyph and the panel stop claiming it is playing.
+      if paused ~= nil then status.paused = paused end
       publish()
     end
   end)
@@ -756,7 +764,18 @@ local function handleRequest(req)
   elseif action == "stop" then
     doStop()
   elseif action == "toggle" then
-    if status.playing then
+    if status.playing and status.paused then
+      -- Paused from a media key: resume in place instead of relaunching mpv.
+      status.paused = false
+      publish()
+      if hasSocat then
+        enqueue(function(done)
+          noctalia.runAsync(mpvCmd('{"command":["set_property","pause",false]}'), function()
+            done()
+          end)
+        end)
+      end
+    elseif status.playing then
       doStop()
     else
       doPlay(status.reciterId, status.surahId, { startAt = tonumber(status.position) or 0 })
@@ -811,9 +830,12 @@ end
 
 -- ── lifecycle ────────────────────────────────────────────────────────────────
 
-noctalia.runAsync("test -f /usr/lib/mpv/mpris.so && echo yes", function(res)
-  hasMpris = res ~= nil and res.exitCode == 0 and tostring(res.stdout or ""):find("yes") ~= nil
-  noctalia.log("[quran] mpris=" .. tostring(hasMpris))
+-- mpv-mpris installs into /etc/mpv/scripts, which mpv auto-loads for every
+-- instance. Passing --script= as well exports the D-Bus object twice and the
+-- second registration fails, so detection here is informational only.
+noctalia.runAsync("test -f /etc/mpv/scripts/mpris.so && echo etc || (test -f /usr/lib/mpv-mpris/mpris.so && echo lib || true)", function(res)
+  hasMpris = res ~= nil and res.exitCode == 0 and tostring(res.stdout or ""):find("%a") ~= nil
+  noctalia.log("[quran] mpris auto-load=" .. tostring(hasMpris))
 end)
 
 loadState()
@@ -859,11 +881,15 @@ function update()
       deadStreak = deadStreak + 1
       if deadStreak < 2 then return end
       deadStreak = 0
-      if os.time() - launchedAt < 30 then
+      -- A surah resumed near its end finishes within seconds of launch, which
+      -- the old "died under 30s" rule reported as a playback failure. Judge by
+      -- progress instead: anything that advanced means the file played out.
+      local advanced = (tonumber(status.position) or 0) - (tonumber(launchedFrom) or 0)
+      if advanced < 3 and os.time() - launchedAt < 30 then
         status.playing = false
         publish()
         noctalia.notifyError("Quran", "Gagal memutar (" .. tostring(status.name) .. ")")
-        noctalia.log("[quran] mpv died fast, see mpv.log")
+        noctalia.log("[quran] mpv died fast, see mpv.log advanced=" .. tostring(advanced))
         return
       end
       if status.repeatOne == true then

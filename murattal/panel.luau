@@ -119,6 +119,7 @@ noctalia.state.watch("quran_status", function(v)
     status.queueIndex = tonumber(status.queueIndex) or 0
     status.juz = tonumber(status.juz) or 0
     status.downloading = status.downloading or {}
+    status.paused = status.paused == true
   end
   refresh()
 end)
@@ -344,6 +345,7 @@ end
 
 local function renderPlayer()
   local playing = status.playing == true
+  local paused = status.paused == true
   local pos = tonumber(status.position) or 0
   local dur = tonumber(status.duration) or 0
   local curReciter = reciterById(status.reciterId)
@@ -435,11 +437,11 @@ local function renderPlayer()
       }),
       ui.row({ justify = "space_between" }, {
         ui.label({ text = fmtTime(pos) .. " / " .. fmtTime(dur), fontSize = 10, color = "on_surface_variant" }),
-        ui.label({ text = playing and "Playing" or "Paused", fontSize = 10, color = playing and "primary" or "on_surface_variant" }),
+        ui.label({ text = playing and (paused and "Paused" or "Playing") or "Stopped", fontSize = 10, color = playing and not paused and "primary" or "on_surface_variant" }),
       }),
       ui.row({ gap = 8, justify = "center" }, {
         ui.button({ glyph = "player-skip-back-filled", onClick = function() req("prev") end }),
-        ui.button({ glyph = playing and "player-pause-filled" or "player-play-filled", variant = "primary", onClick = function() req("toggle") end }),
+        ui.button({ glyph = (playing and not paused) and "player-pause-filled" or "player-play-filled", variant = "primary", onClick = function() req("toggle") end }),
         ui.button({ glyph = "player-skip-forward-filled", onClick = function() req("next") end }),
         ui.button({ glyph = isFav(status.surahId, status.reciterId) and "star-filled" or "star", onClick = function() toggleFav(status.surahId, status.reciterId) end }),
       }),
