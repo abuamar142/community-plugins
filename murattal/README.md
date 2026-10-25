@@ -82,4 +82,4 @@ noctalia msg plugin abuamar142/murattal:player all refresh
 - Network: mp3quran.net reciter/surah catalog and audio, equran.id for surah text.
 - Files: favorites at `favorites.json`, last position at `state.json`, downloaded audio at `audio/<moshaf>/NNN.mp3`, cached text at `text/NNN.json`, mpv IPC socket `mpv.sock` — all under the plugin data dir.
 - Processes: one headless `mpv --no-video`. Killed on disable/uninstall/exit.
-- A juz maps to every surah it touches, because the catalogue serves audio per surah; the first and last surah of a juz are shared with its neighbour.
+- A juz maps to every surah it touches, because the catalogue serves audio per surah; a surah spanning a juz boundary belongs to both juz. The spans come from api.alquran.cloud and are stored as explicit pairs, so juz 2 is surah 2 alone and juz 30 is 78–114.
