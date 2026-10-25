@@ -14,7 +14,7 @@ Stream murottal Al-Qur'an per surah and qari from mp3quran.net, played headless 
 
 Install `mpv` and `socat` on `PATH`. `mpv` does headless playback, `socat` talks to its IPC socket for volume/seek/speed. Without `socat`, volume changes relaunch mpv and progress is parsed from mpv's log; seek is unavailable.
 
-Optional: `mpv-mpris` (AUR, `mpv-mpris-git`) so the bar media widget, keyboard media keys, and `playerctl` can control playback. The plugin passes `--script=/usr/lib/mpv/mpris.so` to mpv when that file exists. Helper: `mpv-mpris-setup.sh`.
+Optional: `mpv-mpris` (AUR, `mpv-mpris-git`) so the bar media widget, keyboard media keys, and `playerctl` can control playback. The package installs `/etc/mpv/scripts/mpris.so`, which mpv auto-loads for every instance — no flag needed. Do **not** also pass `--script=` for it: that loads the script twice and the second D-Bus registration fails.
 
 ## Usage
 
