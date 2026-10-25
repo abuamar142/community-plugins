@@ -22,11 +22,41 @@ local mpvBin = noctalia.getConfig("mpv_bin") or "mpv"
 local hasSocat = noctalia.commandExists("socat")
 local hasMpris = false
 
--- Juz i starts at surah JUZ_STARTS[i] and ends at JUZ_STARTS[i+1] - 1.
-local JUZ_STARTS = {
-  1, 2, 2, 3, 4, 4, 5, 6, 7, 8,
-  9, 11, 12, 15, 17, 18, 21, 23, 25, 27,
-  29, 33, 36, 39, 41, 46, 51, 58, 67, 78,
+-- Surah span of each juz, inclusive on both ends. The catalogue serves audio
+-- per surah, so a juz maps to every surah it touches and the surahs on a juz
+-- boundary are shared with the neighbouring juz. Boundaries verified against
+-- api.alquran.cloud/v1/juz/N/quran-uthmani.
+local JUZ_SPANS = {
+  { 1, 2 }, -- juz 1: 1:1 .. 2:141
+  { 2, 2 }, -- juz 2: 2:142 .. 2:252
+  { 2, 3 }, -- juz 3: 2:253 .. 3:92
+  { 3, 4 }, -- juz 4: 3:93 .. 4:23
+  { 4, 4 }, -- juz 5: 4:24 .. 4:147
+  { 4, 5 }, -- juz 6: 4:148 .. 5:81
+  { 5, 6 }, -- juz 7: 5:82 .. 6:110
+  { 6, 7 }, -- juz 8: 6:111 .. 7:87
+  { 7, 8 }, -- juz 9: 7:88 .. 8:40
+  { 8, 9 }, -- juz 10: 8:41 .. 9:92
+  { 9, 11 }, -- juz 11: 9:93 .. 11:5
+  { 11, 12 }, -- juz 12: 11:6 .. 12:52
+  { 12, 14 }, -- juz 13: 12:53 .. 14:52
+  { 15, 16 }, -- juz 14: 15:1 .. 16:128
+  { 17, 18 }, -- juz 15: 17:1 .. 18:74
+  { 18, 20 }, -- juz 16: 18:75 .. 20:135
+  { 21, 22 }, -- juz 17: 21:1 .. 22:78
+  { 23, 25 }, -- juz 18: 23:1 .. 25:20
+  { 25, 27 }, -- juz 19: 25:21 .. 27:55
+  { 27, 29 }, -- juz 20: 27:56 .. 29:45
+  { 29, 33 }, -- juz 21: 29:46 .. 33:30
+  { 33, 36 }, -- juz 22: 33:31 .. 36:27
+  { 36, 39 }, -- juz 23: 36:28 .. 39:31
+  { 39, 41 }, -- juz 24: 39:32 .. 41:46
+  { 41, 45 }, -- juz 25: 41:47 .. 45:37
+  { 46, 51 }, -- juz 26: 46:1 .. 51:30
+  { 51, 57 }, -- juz 27: 51:31 .. 57:29
+  { 58, 66 }, -- juz 28: 58:1 .. 66:12
+  { 67, 77 }, -- juz 29: 67:1 .. 77:50
+  { 78, 114 }, -- juz 30: 78:1 .. 114:6
 }
 
 local reciters = {}
@@ -315,9 +345,8 @@ end
 
 local function buildJuz()
   local out = {}
-  for i = 1, 30 do
-    local from = JUZ_STARTS[i]
-    local to = (JUZ_STARTS[i + 1] or 115) - 1
+  for i = 1, #JUZ_SPANS do
+    local from, to = JUZ_SPANS[i][1], JUZ_SPANS[i][2]
     out[#out + 1] = { id = i, from = from, to = to, count = to - from + 1 }
   end
   noctalia.state.set("quran_juz", out)
@@ -668,8 +697,8 @@ end
 local function doJuz(n)
   n = tonumber(n)
   if not n or n < 1 or n > 30 then return end
-  local from = JUZ_STARTS[n]
-  local to = (JUZ_STARTS[n + 1] or 115) - 1
+  local span = JUZ_SPANS[n]
+  local from, to = span[1], span[2]
   local ids = {}
   for i = from, to do ids[#ids + 1] = i end
   status.queue = ids
