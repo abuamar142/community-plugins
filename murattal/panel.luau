@@ -374,9 +374,12 @@ local function renderPlayer()
     favRows[1] = ui.label({ text = "Belum ada favorit", color = "on_surface_variant", fontSize = 11 })
   end
 
-  local juzOptions = {}
+  -- Slot 0 is a stand-in "no juz queued" entry: ui.select shows its first
+  -- option when selectedIndex is out of range, so without it the dropdown
+  -- reads "Juz 1" even though nothing is queued.
+  local juzOptions = {"— pilih juz —"}
   for i = 1, 30 do
-    juzOptions[i] = "Juz " .. tostring(i)
+    juzOptions[#juzOptions + 1] = "Juz " .. tostring(i)
   end
   local curJuz = tonumber(status.juz) or 0
 
@@ -466,18 +469,23 @@ local function renderPlayer()
       ui.row({ gap = 8, align = "center" }, {
         ui.select({
           options = juzOptions,
-          selectedIndex = math.max(0, curJuz - 1),
+          -- Slot i holds "Juz i" (slot 0 is the placeholder), so the index is
+          -- the juz number and 0 means nothing queued.
+          selectedIndex = curJuz > 0 and curJuz or 0,
           flexGrow = 1,
           onChange = function(index)
-            local n = (tonumber(index) or 0) + 1
-            req("juz", { juz = n })
+            local n = (tonumber(index) or 0)
+            if n >= 1 and n <= 30 then req("juz", { juz = n }) end
           end,
         }),
         ui.button({
           text = "Putar juz",
           variant = "primary",
+          enabled = curJuz >= 1 and curJuz <= 30,
           onClick = function()
-            req("juz", { juz = math.max(1, curJuz) })
+            if curJuz >= 1 and curJuz <= 30 then
+              req("juz", { juz = curJuz })
+            end
           end,
         }),
       }),
@@ -656,8 +664,12 @@ local function renderText()
     local to = math.min(total, textPage * TEXT_PER_PAGE)
 
     body[#body + 1] = ui.row({ justify = "space_between", align = "center" }, {
+      -- The header shows only the Arabic name (the surah list comes from
+      -- mp3quran), so the meta line carries the rest: the transliterated name,
+      -- its meaning, the place of revelation, and the ayah count.
       ui.label({
-        text = string.format("%s · %s · %d ayat", tostring(doc.namaLatin or ""), tostring(doc.arti or ""), total),
+        text = string.format("%s · %s · %s · %d ayat", tostring(doc.namaLatin or ""),
+          tostring(doc.arti or ""), tostring(doc.tempatTurun or ""), total),
         fontSize = 11,
         color = "on_surface_variant",
         flexGrow = 1,
@@ -699,9 +711,11 @@ local function renderText()
       local a = ayat[i]
       if a then
         local rows = {
-          ui.row({ gap = 8, align = "start" }, {
-            ui.label({ text = tostring(a.nomorAyat or i), fontSize = 10, color = "primary", width = 26 }),
-            ui.label({ text = tostring(a.teksArab or ""), fontSize = 18, flexGrow = 1, textAlign = "end" }),
+          ui.row({ gap = 10, align = "start" }, {
+            -- LTR row, so this column lands on the LEFT: past the end of the RTL
+            -- text. Reading the ayah right-to-left ends on its number.
+            ui.label({ text = tostring(a.nomorAyat or i), fontSize = 10, color = "primary", width = 22 }),
+            ui.label({ text = tostring(a.teksArab or ""):gsub("%s+$", ""), fontSize = 19, flexGrow = 1, textAlign = "end" }),
           }),
         }
         if showLatin and a.teksLatin and a.teksLatin ~= "" then
