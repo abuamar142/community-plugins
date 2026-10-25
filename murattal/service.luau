@@ -61,18 +61,22 @@ local JUZ_SPANS = {
 
 local reciters = {}
 local surahs = {}
+local everyayahReciters = {}
+local ayahCounts = {}
 local cacheIndex = {}
-local slugMap = {}
 local status = {
   playing = false, name = "", reciterId = "", surahId = 1, volume = volume, url = "",
   cached = false, repeatOne = false, repeatCount = 1, repeatDone = 0, speed = 1.0,
   sleepUntil = 0, shuffle = false, position = 0, duration = 0, paused = false,
   queue = {}, queueIndex = 0, juz = 0, downloading = {},
+  mode = "surah", ayah = 1, ayahCount = 0, everyayahId = "",
 }
 local lastSeq = -1
 local launchedAt = 0
 local launchedFrom = 0
 local lastSavedAt = 0
+local lastReciterRetry = 0
+local reciterFetching, everyayahFetching, suwarFetching = false, false, false
 local deadStreak = 0
 local playGen = 0
 local queue, queueBusy, queueSince = {}, false, 0
@@ -116,6 +120,10 @@ local function publish()
     queueIndex = tonumber(status.queueIndex) or 0,
     juz = tonumber(status.juz) or 0,
     downloading = downloading,
+    mode = status.mode or "surah",
+    ayah = tonumber(status.ayah) or 1,
+    ayahCount = tonumber(status.ayahCount) or 0,
+    everyayahId = status.everyayahId or "",
   })
 end
 
@@ -133,25 +141,21 @@ local function findSurah(id)
   return nil
 end
 
--- ── offline cache ────────────────────────────────────────────────────────────
-
--- Two trailing path segments of the moshaf server URL identify it on disk:
--- https://cdn.mp3quran.net/audio/ibrahim-akhdar/r1/ -> "ibrahim-akhdar-r1"
-local function serverSlug(server)
-  local path = tostring(server or ""):gsub("^%a[%w+.-]*://[^/]+/?", ""):gsub("/+$", "")
-  local parts = {}
-  for seg in path:gmatch("[^/]+") do table.insert(parts, seg) end
-  local slug
-  if #parts >= 2 then
-    slug = parts[#parts - 1] .. "-" .. parts[#parts]
-  else
-    slug = parts[#parts] or "srv"
+local function findEveryAyah(id)
+  for _, r in ipairs(everyayahReciters) do
+    if tostring(r.id) == tostring(id) then return r end
   end
-  return (slug:gsub("[^%w%-_]", "-"))
+  return nil
 end
 
+local function ayahCountFor(surahId)
+  return tonumber(ayahCounts[tonumber(surahId)]) or 0
+end
+
+-- ── offline cache ────────────────────────────────────────────────────────────
+
 local function cacheDirFor(reciter)
-  return CACHE_DIR .. "/" .. serverSlug(reciter.server)
+  return CACHE_DIR .. "/" .. tostring(reciter.id):gsub("[^%w%-_]", "-")
 end
 
 local function cachePath(reciter, surahId)
@@ -181,13 +185,10 @@ local function refreshCache()
         local path, size = line:match("^(.-)\t(%d+)$")
         if path then
           local dir, num = path:match("^(.*)/(%d+)%.mp3$")
-          if dir then
-            local slug = dir:match("([^/]+)$") or ""
-            local rid = slugMap[slug]
-            if rid then
-              idx[rid] = idx[rid] or {}
-              idx[rid][tonumber(num)] = tonumber(size) or 0
-            end
+          local rid = dir and dir:match("([^/]+)$")
+          if rid and num then
+            idx[rid] = idx[rid] or {}
+            idx[rid][tonumber(num)] = tonumber(size) or 0
           end
         end
       end
@@ -216,6 +217,9 @@ local function saveState()
     repeatOne = status.repeatOne == true,
     repeatCount = tonumber(status.repeatCount) or 1,
     shuffle = status.shuffle == true,
+    mode = status.mode or "surah",
+    ayah = tonumber(status.ayah) or 1,
+    everyayahId = status.everyayahId or "",
   }
   noctalia.writeFile(STATE_FILE, noctalia.json.encode(data) or "{}")
   lastSavedAt = os.time()
@@ -234,17 +238,34 @@ local function loadState()
   status.repeatOne = data.repeatOne == true
   status.repeatCount = math.clamp(math.floor(tonumber(data.repeatCount) or 1), 1, 5)
   status.shuffle = data.shuffle == true
-  noctalia.log("[quran] restored surah " .. tostring(status.surahId) .. " at " .. tostring(status.position) .. "s")
+  status.mode = (data.mode == "ayah") and "ayah" or "surah"
+  status.ayah = tonumber(data.ayah) or 1
+  status.everyayahId = tostring(data.everyayahId or "")
+  noctalia.log("[quran] restored surah " .. tostring(status.surahId) .. " at " .. tostring(status.position) .. "s mode=" .. tostring(status.mode))
 end
 
 local function rebuildName()
-  local r = findReciter(status.reciterId)
   local s = findSurah(status.surahId)
-  if not r or not s then return end
-  local src, cached = resolveSource(r, s.id)
-  status.url = src
-  status.cached = cached
-  status.name = s.name .. " — " .. r.name
+  if not s then return end
+  if status.mode == "ayah" then
+    local r = findEveryAyah(status.everyayahId)
+    if not r then return end
+    local count = ayahCountFor(s.id)
+    status.ayahCount = count
+    if count > 0 then
+      status.ayah = math.clamp(math.floor(tonumber(status.ayah) or 1), 1, count)
+    end
+    status.name = s.name .. " ayat " .. tostring(status.ayah) .. " — " .. r.name
+    status.url = "https://everyayah.com/data/" .. r.id .. "/" .. pad(s.id) .. pad(status.ayah) .. ".mp3"
+    status.cached = false
+  else
+    local r = findReciter(status.reciterId)
+    if not r then return end
+    local src, cached = resolveSource(r, s.id)
+    status.url = src
+    status.cached = cached
+    status.name = s.name .. " — " .. r.name
+  end
   publish()
 end
 
@@ -353,12 +374,15 @@ local function buildJuz()
 end
 
 local function fetchReciters(attempt)
+  if reciterFetching then return end
+  reciterFetching = true
   attempt = attempt or 1
   noctalia.http({ url = "https://www.mp3quran.net/api/v3/reciters?language=id" }, function(res)
+    reciterFetching = false
     if res and res.ok then
       local ok, data = pcall(function() return noctalia.json.decode(res.body) end)
       if ok and type(data) == "table" and type(data.reciters) == "table" then
-        local out, slugs = {}, {}
+        local out = {}
         local seen, rewayaOrder = {}, {}
         for _, q in ipairs(data.reciters) do
           for _, m in ipairs(q.moshaf or {}) do
@@ -372,7 +396,6 @@ local function fetchReciters(attempt)
                 server = m.server,
                 rewaya = rewaya,
               }
-              slugs[serverSlug(m.server)] = id
               if not seen[rewaya] then
                 seen[rewaya] = true
                 rewayaOrder[#rewayaOrder + 1] = { id = tostring(m.rewaya_id or ""), name = rewaya }
@@ -382,15 +405,14 @@ local function fetchReciters(attempt)
         end
         table.sort(rewayaOrder, function(a, b) return a.name < b.name end)
         reciters = out
-        slugMap = slugs
         noctalia.state.set("quran_reciters", reciters)
         noctalia.state.set("quran_rewayas", rewayaOrder)
         if status.reciterId == "" and #reciters > 0 then
           status.reciterId = reciters[1].id
         end
         noctalia.log("[quran] reciters: " .. tostring(#reciters) .. ", rewayas: " .. tostring(#rewayaOrder))
-        refreshCache()
         rebuildName()
+        noctalia.runAsync("sleep 0.2", function() refreshCache() end)
         return
       end
     end
@@ -400,8 +422,11 @@ local function fetchReciters(attempt)
 end
 
 local function fetchSuwar(attempt)
+  if suwarFetching then return end
+  suwarFetching = true
   attempt = attempt or 1
   noctalia.http({ url = "https://www.mp3quran.net/api/v3/suwar?language=id" }, function(res)
+    suwarFetching = false
     if res and res.ok then
       local ok, data = pcall(function() return noctalia.json.decode(res.body) end)
       if ok and type(data) == "table" and type(data.suwar) == "table" then
@@ -431,9 +456,49 @@ local function fetchSuwar(attempt)
   end)
 end
 
+local function fetchEveryAyah(attempt)
+  if everyayahFetching then return end
+  everyayahFetching = true
+  attempt = attempt or 1
+  noctalia.http({ url = "https://everyayah.com/data/recitations.js" }, function(res)
+    everyayahFetching = false
+    if res and res.ok then
+      local ok, data = pcall(function() return noctalia.json.decode(res.body) end)
+      if ok and type(data) == "table" and type(data.ayahCount) == "table" then
+        local counts = {}
+        for i, v in ipairs(data.ayahCount) do counts[i] = tonumber(v) or 0 end
+        local out = {}
+        for k, v in pairs(data) do
+          local n = tonumber(k)
+          if n and type(v) == "table" and v.subfolder then
+            out[#out + 1] = {
+              id = tostring(v.subfolder),
+              name = tostring(v.name or v.subfolder),
+              bitrate = tostring(v.bitrate or ""),
+              label = tostring(v.name or v.subfolder) .. " — " .. tostring(v.bitrate or ""),
+            }
+          end
+        end
+        table.sort(out, function(a, b) return a.label < b.label end)
+        everyayahReciters = out
+        ayahCounts = counts
+        noctalia.state.set("quran_everyayah", everyayahReciters)
+        noctalia.state.set("quran_ayah_counts", ayahCounts)
+        if status.everyayahId == "" and #out > 0 then status.everyayahId = out[1].id end
+        noctalia.log("[quran] everyayah: " .. tostring(#out) .. " reciters, surahs=" .. tostring(#counts))
+        if status.mode == "ayah" then rebuildName() end
+        return
+      end
+    end
+    noctalia.log("[quran] everyayah fetch failed (attempt " .. tostring(attempt) .. ")")
+    if attempt < 3 then fetchEveryAyah(attempt + 1) end
+  end)
+end
+
 local function fetchCatalog()
   fetchReciters(1)
   fetchSuwar(1)
+  fetchEveryAyah(1)
 end
 
 -- ── playback ─────────────────────────────────────────────────────────────────
@@ -458,6 +523,9 @@ doPlay = function(reciterId, surahId, opts)
   local src, cached = resolveSource(r, s.id)
   playGen = playGen + 1
   local gen = playGen
+  status.mode = "surah"
+  status.ayah = 0
+  status.ayahCount = 0
   status.reciterId = tostring(r.id)
   status.surahId = tonumber(s.id)
   status.name = s.name .. " — " .. r.name
@@ -494,6 +562,75 @@ doPlay = function(reciterId, surahId, opts)
           publish()
         else
           noctalia.notifyError("Quran", "Gagal memutar mpv")
+          status.playing = false
+          publish()
+        end
+        done()
+      end)
+    end)
+  end)
+end
+
+local function doPlayAyah(reciterId, surahId, ayah, opts)
+  opts = opts or {}
+  local r = findEveryAyah(reciterId)
+  local s = findSurah(surahId)
+  if not r then
+    noctalia.notifyError("Quran", "Reciter EveryAyah tidak ditemukan")
+    return
+  end
+  if not s then
+    noctalia.notifyError("Quran", "Surah tidak ditemukan")
+    return
+  end
+  local count = ayahCountFor(s.id)
+  if count <= 0 then
+    noctalia.notifyError("Quran", "Jumlah ayah belum siap")
+    return
+  end
+  ayah = math.clamp(math.floor(tonumber(ayah) or 1), 1, count)
+  local src = "https://everyayah.com/data/" .. r.id .. "/" .. pad(s.id) .. pad(ayah) .. ".mp3"
+  playGen = playGen + 1
+  local gen = playGen
+  status.mode = "ayah"
+  status.everyayahId = tostring(r.id)
+  status.surahId = tonumber(s.id)
+  status.ayah = ayah
+  status.ayahCount = count
+  status.name = s.name .. " ayat " .. tostring(ayah) .. " — " .. r.name
+  status.url = src
+  status.cached = false
+  status.playing = true
+  status.paused = false
+  status.position = 0
+  status.duration = 0
+  status.repeatDone = tonumber(opts.repeatDone) or 0
+  publish()
+
+  local dropped = false
+  local function superseded()
+    if gen == playGen then return false end
+    if not dropped then
+      dropped = true
+      noctalia.log("[quran] ayah play superseded")
+    end
+    return true
+  end
+
+  enqueue(function(done)
+    if superseded() then done(); return end
+    stopMpv(function()
+      if superseded() then done(); return end
+      launchMpv(src, status.name, 0, function(res)
+        local launched = (res == nil or res.exitCode == 0)
+        noctalia.log("[quran] ayah launched=" .. tostring(launched) .. " " .. src)
+        if launched then
+          launchedAt = os.time()
+          launchedFrom = 0
+          deadStreak = 0
+          publish()
+        else
+          noctalia.notifyError("Quran", "Gagal memutar ayat")
           status.playing = false
           publish()
         end
@@ -718,6 +855,27 @@ local function sequentialFrom(step)
   return surahs[((i - 1 + step) % #surahs) + 1].id
 end
 
+local function stepAyah(step)
+  local count = ayahCountFor(status.surahId)
+  if count <= 0 then return false end
+  local a = (tonumber(status.ayah) or 1) + step
+  if a > count then
+    local sid = sequentialFrom(1)
+    if ayahCountFor(sid) > 0 then
+      doPlayAyah(status.everyayahId, sid, 1, { startAt = 0 })
+    end
+    return true
+  end
+  if a < 1 then
+    local sid = sequentialFrom(-1)
+    local c = ayahCountFor(sid)
+    if c > 0 then doPlayAyah(status.everyayahId, sid, c, { startAt = 0 }) end
+    return true
+  end
+  doPlayAyah(status.everyayahId, status.surahId, a, { startAt = 0 })
+  return true
+end
+
 -- ── downloads ────────────────────────────────────────────────────────────────
 
 local function doDownload(surahId)
@@ -790,6 +948,31 @@ local function handleRequest(req)
   if action == "play" then
     status.queue, status.queueIndex, status.juz = {}, 0, 0
     doPlay(req.reciterId or status.reciterId, req.surahId or status.surahId, { startAt = 0 })
+  elseif action == "playAyah" then
+    status.queue, status.queueIndex, status.juz = {}, 0, 0
+    doPlayAyah(req.everyayahId or status.everyayahId, req.surahId or status.surahId, req.ayah or status.ayah, { startAt = 0 })
+  elseif action == "setMode" then
+    status.mode = (req.mode == "ayah") and "ayah" or "surah"
+    if status.mode == "ayah" and status.everyayahId == "" and #everyayahReciters > 0 then
+      status.everyayahId = everyayahReciters[1].id
+    end
+    status.ayahCount = ayahCountFor(status.surahId)
+    if status.ayahCount > 0 then
+      status.ayah = math.clamp(tonumber(status.ayah) or 1, 1, status.ayahCount)
+    end
+    rebuildName()
+    saveState()
+  elseif action == "setEveryAyah" then
+    status.everyayahId = tostring(req.everyayahId)
+    rebuildName()
+    saveState()
+  elseif action == "setAyah" then
+    local count = ayahCountFor(status.surahId)
+    if count > 0 then
+      status.ayah = math.clamp(math.floor(tonumber(req.ayah) or 1), 1, count)
+    end
+    rebuildName()
+    saveState()
   elseif action == "stop" then
     doStop()
   elseif action == "toggle" then
@@ -806,6 +989,8 @@ local function handleRequest(req)
       end
     elseif status.playing then
       doStop()
+    elseif status.mode == "ayah" then
+      doPlayAyah(status.everyayahId, status.surahId, status.ayah, { startAt = 0 })
     else
       doPlay(status.reciterId, status.surahId, { startAt = tonumber(status.position) or 0 })
     end
@@ -833,18 +1018,24 @@ local function handleRequest(req)
     refreshCache()
   elseif action == "next" then
     status.repeatDone = 0
-    if not advanceQueue() then
+    if status.mode == "ayah" then
+      stepAyah(1)
+    elseif not advanceQueue() then
       doPlay(status.reciterId, sequentialFrom(1), { startAt = 0 })
     end
   elseif action == "prev" then
     status.repeatDone = 0
-    local q = status.queue or {}
-    local i = tonumber(status.queueIndex) or 0
-    if #q > 0 and i > 1 then
-      status.queueIndex = i - 1
-      doPlay(status.reciterId, q[status.queueIndex], { startAt = 0 })
+    if status.mode == "ayah" then
+      stepAyah(-1)
     else
-      doPlay(status.reciterId, sequentialFrom(-1), { startAt = 0 })
+      local q = status.queue or {}
+      local i = tonumber(status.queueIndex) or 0
+      if #q > 0 and i > 1 then
+        status.queueIndex = i - 1
+        doPlay(status.reciterId, q[status.queueIndex], { startAt = 0 })
+      else
+        doPlay(status.reciterId, sequentialFrom(-1), { startAt = 0 })
+      end
     end
   elseif action == "setReciter" then
     status.reciterId = tostring(req.reciterId)
@@ -852,6 +1043,10 @@ local function handleRequest(req)
     saveState()
   elseif action == "setSurah" then
     status.surahId = tonumber(req.surahId) or status.surahId
+    status.ayahCount = ayahCountFor(status.surahId)
+    if status.ayahCount > 0 then
+      status.ayah = math.clamp(tonumber(status.ayah) or 1, 1, status.ayahCount)
+    end
     rebuildName()
     saveState()
   end
@@ -888,6 +1083,11 @@ fetchCatalog()
 noctalia.setUpdateInterval(2000)
 
 function update()
+  if #reciters == 0 and os.time() - lastReciterRetry > 20 then
+    lastReciterRetry = os.time()
+    noctalia.log("[quran] reciter list empty, retrying")
+    fetchReciters(1)
+  end
   if queueBusy and os.time() - queueSince > 15 then
     noctalia.log("[quran] queue stuck, reset")
     queue, queueBusy = {}, false
@@ -922,16 +1122,34 @@ function update()
         return
       end
       if status.repeatOne == true then
-        doPlay(status.reciterId, status.surahId, { startAt = 0 })
+        if status.mode == "ayah" then
+          doPlayAyah(status.everyayahId, status.surahId, status.ayah, { startAt = 0 })
+        else
+          doPlay(status.reciterId, status.surahId, { startAt = 0 })
+        end
         return
       end
       local rc = tonumber(status.repeatCount) or 1
       local doneCount = tonumber(status.repeatDone) or 0
       if rc > 1 and doneCount + 1 < rc then
-        doPlay(status.reciterId, status.surahId, { startAt = 0, repeatDone = doneCount + 1 })
+        if status.mode == "ayah" then
+          doPlayAyah(status.everyayahId, status.surahId, status.ayah, { startAt = 0, repeatDone = doneCount + 1 })
+        else
+          doPlay(status.reciterId, status.surahId, { startAt = 0, repeatDone = doneCount + 1 })
+        end
         return
       end
       status.repeatDone = 0
+      if status.mode == "ayah" then
+        if status.shuffle == true and #surahs > 0 then
+          math.randomseed(os.time())
+          local sid = surahs[math.random(#surahs)].id
+          if ayahCountFor(sid) > 0 then doPlayAyah(status.everyayahId, sid, 1, { startAt = 0 }) end
+          return
+        end
+        stepAyah(1)
+        return
+      end
       if advanceQueue() then return end
       if status.shuffle == true and #surahs > 0 then
         math.randomseed(os.time())
@@ -971,6 +1189,18 @@ function onIpc(event, payload)
     else
       fire({ action = "play" })
     end
+  elseif event == "playAyah" and payload and payload ~= "" then
+    local ok, data = pcall(function() return noctalia.json.decode(payload) end)
+    if ok and type(data) == "table" then
+      fire({ action = "playAyah", everyayahId = data.everyayahId, surahId = data.surahId, ayah = data.ayah })
+    end
+  elseif event == "setMode" then
+    fire({ action = "setMode", mode = payload })
+  elseif event == "setEveryAyah" then
+    fire({ action = "setEveryAyah", everyayahId = payload })
+  elseif event == "setAyah" then
+    local n = tonumber(payload)
+    if n then fire({ action = "setAyah", ayah = n }) end
   elseif event == "stop" then
     fire({ action = "stop" })
   elseif event == "toggle" then

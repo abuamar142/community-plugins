@@ -1,6 +1,6 @@
 # Murattal
 
-Stream murottal Al-Qur'an per surah and qari from mp3quran.net, played headless via mpv. Bar widget shows the current surah. The panel has two tabs: **Putar** (playback card, juz queue, qari filtered by riwayah, offline downloads, repeat/shuffle, speed, sleep timer, favorites) and **Teks** (the Arabic text of the current surah with optional Latin and Indonesian translation). The launcher searches surahs, juz, and qari.
+Stream murottal Al-Qur'an per surah (mp3quran.net) and per ayah (everyayah.com), played headless via mpv. The bar widget shows the current surah/ayah. The panel has three tabs: **Surah** (simple qari + surah + Play), **Per Ayah** (per-ayah audio with Arabic text and Indonesian translation), and **Favorit** (saved surah/qari). Advanced controls live behind **Opsi**, so the default view stays simple. The launcher searches surahs, juz, and qari.
 
 ## Plugin
 
@@ -28,8 +28,13 @@ noctalia msg panel-toggle abuamar142/murattal:browser
 
 ### Panel
 
-- **Putar** — now playing, progress seek, prev/play/next, favorite toggle. Below it: a juz selector ("Putar juz" queues every surah of that juz and advances through them), a riwayah filter that narrows the qari dropdown, the qari and surah pickers, an offline download toggle for the current surah, repeat/shuffle, repeat count (1x–5x for memorisation), speed, and sleep timer.
-- **Teks** — the text of the surah currently loaded in the player, fetched once from equran.id and cached under the plugin data dir. Paged 20 ayah at a time. Translation and transliteration follow the panel settings.
+The now-playing card stays at the top: title, mode (Surah or Ayah X/N), progress seek, prev/play/next, and favorite toggle.
+
+- **Surah** — the simple flow: pick a qari, pick a surah, press **Putar surah**. Offline download is next to it.
+- **Per Ayah** — pick an EveryAyah reciter and surah, then play any ayah from the reading list. The Arabic text and Indonesian translation come from equran.id, cached per surah. The current ayah is highlighted and scrolled into view automatically; each row has play and repeat buttons.
+- **Favorit** — saved surah/qari pairs with play and remove.
+
+**Opsi** opens the advanced controls: volume, repeat/shuffle, repeat count (1x–5x), speed, sleep timer, translation/transliteration toggles, juz queue, and the riwayah filter.
 
 Playback position is saved every 15 s and on stop/exit, and restored on the next start, so a restart does not send you back to Al-Fatihah.
 
@@ -53,13 +58,17 @@ Empty `/quran` lists favorites.
 | `mpv_bin` | `string` | `mpv` | mpv executable. |
 | `show_name` (widget) | `bool` | `true` | Show surah name next to icon. |
 | `max_length` (widget) | `int` | `24` | Max characters of surah name. |
-| `show_translation` (panel) | `bool` | `true` | Show the Indonesian translation under each ayah. |
-| `show_latin` (panel) | `bool` | `false` | Show the Latin transliteration under each ayah. |
+| `show_translation` (panel) | `bool` | `true` | Show the Indonesian translation under each ayah in the Per Ayah tab. |
+| `show_latin` (panel) | `bool` | `false` | Show the Latin transliteration under each ayah in the Per Ayah tab. |
 
 ## IPC
 
 ```sh
 noctalia msg plugin abuamar142/murattal:player all play '{"reciterId":"1-1","surahId":1}'
+noctalia msg plugin abuamar142/murattal:player all playAyah '{"everyayahId":"Alafasy_128kbps","surahId":1,"ayah":1}'
+noctalia msg plugin abuamar142/murattal:player all setMode ayah
+noctalia msg plugin abuamar142/murattal:player all setEveryAyah Alafasy_128kbps
+noctalia msg plugin abuamar142/murattal:player all setAyah 3
 noctalia msg plugin abuamar142/murattal:player all stop
 noctalia msg plugin abuamar142/murattal:player all toggle
 noctalia msg plugin abuamar142/murattal:player all next
@@ -79,7 +88,7 @@ noctalia msg plugin abuamar142/murattal:player all refresh
 
 ## Notes
 
-- Network: mp3quran.net reciter/surah catalog and audio, equran.id for surah text.
+- Network: mp3quran.net reciter/surah catalog and audio, everyayah.com per-ayah audio, equran.id for surah text.
 - Files: favorites at `favorites.json`, last position at `state.json`, downloaded audio at `audio/<moshaf>/NNN.mp3`, cached text at `text/NNN.json`, mpv IPC socket `mpv.sock` — all under the plugin data dir.
 - Processes: one headless `mpv --no-video`. Killed on disable/uninstall/exit.
 - A juz maps to every surah it touches, because the catalogue serves audio per surah; a surah spanning a juz boundary belongs to both juz. The spans come from api.alquran.cloud and are stored as explicit pairs, so juz 2 is surah 2 alone and juz 30 is 78–114.

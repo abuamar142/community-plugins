@@ -1,11 +1,11 @@
 id = "abuamar142/murattal"
 name = "Murattal"
-version = "0.2.0"
+version = "0.3.0"
 plugin_api = 24
 author = "abuamar142"
 license = "MIT"
 icon = "music-note"
-description = "Stream murottal Al-Qur'an per surah and qari from mp3quran.net via mpv."
+description = "Stream murottal Al-Qur'an per surah or per ayah, with Arabic text and translation, via mpv."
 dependencies = ["mpv", "socat"]
 tags = ["bar", "panel", "service", "launcher", "audio", "media", "music"]
 
@@ -50,8 +50,8 @@ entry = "widget.luau"
 [[panel]]
 id = "browser"
 entry = "panel.luau"
-width = 600
-height = 720
+width = 640
+height = 760
 placement = "floating"
 position = "center"
 
